@@ -279,8 +279,8 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # Regularize with gamma=q(c|x)
         #--------------------------------------------------------------------------------#
-        delta_qcx_right = self.one_by_delta_x *torch.sum((gamma_right -gamma),1)
-        delta_qcx_bottom =self.one_by_delta_x *torch.sum((gamma_bottom -gamma),1)
+        delta_qcx_right = self.one_by_delta_x *(gamma_right -gamma)
+        delta_qcx_bottom =self.one_by_delta_x *(gamma_bottom -gamma)
         
         square_sum_qcx = (delta_qcx_right)**2 + (delta_qcx_bottom)**2
         
@@ -289,7 +289,7 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # final loss function 
         #--------------------------------------------------------------------------------#
-        loss = torch.mean(log_pxz + logpzc + logpc + qentropy + logqcx) + self.lambdas * torch.sum(norm_qcx)
+        loss = torch.mean(log_pxz + logpzc + logpc + qentropy + logqcx) + self.lambdas * torch.mean(torch.sum(norm_qcx,1))
         
         return loss
 
