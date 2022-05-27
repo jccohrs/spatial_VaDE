@@ -310,7 +310,7 @@ def main():
         return -score['overallAcc']
 
     trials=Trials()
-    best=fmin(fn=hyper_opt,space=args, algo=rand.suggest,max_evals=max_evals,rstate=np.random.RandomState(seed_hyp),trials=trials)
+    best=fmin(fn=hyper_opt,space=args, algo=rand.suggest,max_evals=max_evals,rstate=np.random.default_rng(seed_hyp),trials=trials)
 
     df=[]
     for iter in range(max_evals):
