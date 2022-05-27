@@ -425,9 +425,10 @@ class VaDE(nn.Module):
             
             valid_loss += loss.data.item() * len(inputs)
         
-        Y = np.concatenate(Y)
-        Z = np.concatenate(Z)
-        self.visualize_state(Z, Y, epoch=-1)
+        if visualize:
+            Y = np.concatenate(Y)
+            Z = np.concatenate(Z)
+            self.visualize_state(Z, Y, epoch=-1)
 
         #--------------------------------------------------------------------------------#
         # Valid loss of initialized weights

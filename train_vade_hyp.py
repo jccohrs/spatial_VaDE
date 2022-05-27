@@ -258,7 +258,7 @@ def main():
         print("Initialized through GMM.")
 
         print('Fit the model...')
-        y_pred = vade.fit(dataloader, valid_loader, lr=args['lr'], num_epochs=args['epochs'], anneal=False, visualize=True)
+        y_pred = vade.fit(dataloader, valid_loader, lr=args['lr'], num_epochs=args['epochs'], anneal=False, visualize=False)
 
         if args['save'] != "":
             print('Save weights at {}'.format(args['save']))
