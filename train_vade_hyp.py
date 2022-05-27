@@ -29,11 +29,11 @@ def parse_args():
                         help='learning rate for training (default: 0.0001)')
     parser.add_argument('--batch-size', type=int, default=100, metavar='N',
                         help='input batch size for training (default: 100)')
-    parser.add_argument('--epochs', type=int, default=1000, metavar='N',
-                        help='number of epochs to train (default: 400)')
+    parser.add_argument('--epochs', type=int, default=500, metavar='N',
+                        help='number of epochs to train (default: 500)')
     parser.add_argument('--pretrain', type=str, default="", metavar='N',
                         help='path to pretrained model')
-    parser.add_argument('--regularizer',type=float, default=490.0, metavar='N',
+    parser.add_argument('--regularizer',type=float, default=0.01, metavar='N',
                         help='value for reularization')
     parser.add_argument('--save', type=str, default="model_params/trained_vade.pt", metavar='N',
                         help='path to location where to store the found weights')
