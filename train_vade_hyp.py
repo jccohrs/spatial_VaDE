@@ -90,7 +90,7 @@ def main():
     # make argument compatible to hyperopt
     #------------------------------------------------------------------------------#
     args = parse_args()
-    args['regularizer']=hp.uniform('regularizer', 0,1000),
+    args['regularizer']=hp.uniform('regularizer', 0, 0.25),
     args['save']=os.path.expandvars('${OUTPUT_DIR}/segmentation/trained_vade.pt')
 
     #------------------------------------------------------------------------------#
@@ -101,11 +101,11 @@ def main():
     torch.manual_seed(seed)
     np.random.seed(seed)
     seed_hyp=seed
-    max_evals=100
+    max_evals=25
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    image_file = 'SalinasA_mod'
+    image_file = 'Salinas'
     #groundtruth_file ='SalinasA'
     
 
@@ -124,9 +124,10 @@ def main():
     # check and create a folder to store all the data and figure
     #--------------------------------------------------------------------------------#
     
-    directory ='Salinas_with_1000_epoch_with_regularizer_93.15724299577354'
-    current_directory = os.getcwd()
-    final_directory = os.path.join(current_directory+'/',directory)
+    directory ='Salinas_0_025'
+    current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade-tv')
+    # current_directory = os.getcwd()
+    final_directory = os.path.join(current_directory+'/', directory)
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
 
