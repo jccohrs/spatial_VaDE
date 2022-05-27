@@ -94,8 +94,8 @@ def log_likelihood_samplesImean_sigma(samples, mu, logvar):
 class VaDE(nn.Module):
     def __init__(self, input_dim=784, z_dim=10, n_centroids=10,
         encodeLayer=[500, 500,2000], decodeLayer=[2000, 500, 500],
-        one_by_delta_x=86,regularization=100,
-        directory='Without_batch_normal',ignore_label=None):
+        one_by_delta_x=86, regularization=0.01,
+        directory='Without_batch_normal', ignore_label=None):
         super(VaDE, self).__init__()
         self.z_dim = z_dim
         self.n_centroids = n_centroids
@@ -415,19 +415,20 @@ class VaDE(nn.Module):
             data_dim = int(inputs.shape[1]/3)
             z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:,0:data_dim])
 
-            z_right, _, _, _,_ = self.forward(inputs[:,data_dim:2*data_dim])
-            z_bottom, _, _, _,_= self.forward(inputs[:,2*data_dim:3*data_dim])
+            z_right, _, _, _,_ = self.forward(inputs[:, data_dim : 2*data_dim])
+            z_bottom, _, _, _,_= self.forward(inputs[:, 2*data_dim : 3*data_dim])
 
             Z.append(z.detach().cpu().numpy())
             Y.append(labels.numpy())
             
-            loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar,z_right,z_bottom)
+            loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
             
             valid_loss += loss.data.item() * len(inputs)
         
         if visualize:
             Y = np.concatenate(Y)
             Z = np.concatenate(Z)
+            # TODO: this visualization uses true labels, so one after finishing an epoch uses predicted labels. Not comparable!
             self.visualize_state(Z, Y, epoch=-1)
 
         #--------------------------------------------------------------------------------#
@@ -453,7 +454,6 @@ class VaDE(nn.Module):
             # compute a gradient step for each training batch
             #--------------------------------------------------------------------------------#
             train_loss = 0
-            a=1
             for _, (inputs, _) in enumerate(trainloader):
                 if use_cuda:
                     inputs = inputs.cuda()
@@ -481,7 +481,7 @@ class VaDE(nn.Module):
             Y = []
             Y_pred = []
             Z = []
-            for batch_idx, (inputs, labels) in enumerate(validloader):
+            for _, (inputs, labels) in enumerate(validloader):
                 if use_cuda:
                     inputs = inputs.cuda()
                 inputs = Variable(inputs)
@@ -493,8 +493,7 @@ class VaDE(nn.Module):
 
                 Z.append(z.detach().cpu().numpy())
 
-
-                loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar,z_right,z_bottom)
+                loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
 
                 valid_loss += loss.data.item() * len(inputs)
 
@@ -512,7 +511,7 @@ class VaDE(nn.Module):
             Y = np.concatenate(Y)
             Y_pred = np.concatenate(Y_pred)
             Z = np.concatenate(Z)
-            acc = cluster_acc(Y_pred, Y,self.ignore_label)
+            acc = cluster_acc(Y_pred, Y, self.ignore_label)
 
             print("#Epoch %3d: lr: %.5f, Train Loss: %.5f, Valid Loss: %.5f, acc: %.5f" % (
                 epoch, epoch_lr, train_loss / len(trainloader.dataset), valid_loss / len(validloader.dataset), acc[0]))
@@ -520,6 +519,7 @@ class VaDE(nn.Module):
             #if visualize and epoch % 50 == 0:
             if visualize and epoch == (num_epochs-1):
                 print('Plot current latent space.')
+                # TODO: this visualization uses predicted labels, so one after init uses true labels. Not comparable!
                 self.visualize_state(Z, Y_pred, epoch=epoch)
 
         return Y_pred

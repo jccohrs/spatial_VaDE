@@ -95,8 +95,8 @@ def main():
     # make argument compatible to hyperopt
     #------------------------------------------------------------------------------#
     args = parse_args()
-    args['regularizer']=hp.uniform('regularizer', 0, 0.25),
-    args['save']=os.path.expandvars('${OUTPUT_DIR}/segmentation/trained_vade.pt')
+    args['regularizer'] = hp.uniform('regularizer', 0, 0.1),
+    args['save'] = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade-tv/trained_vade.pt')
 
     #------------------------------------------------------------------------------#
     # seed the randomness
@@ -129,7 +129,7 @@ def main():
     # check and create a folder to store all the data and figure
     #--------------------------------------------------------------------------------#
 
-    directory ='Salinas_0_025'
+    directory ='Salinas_0_01'
     current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade-tv')
     # current_directory = os.getcwd()
     final_directory = os.path.join(current_directory+'/', directory)
@@ -139,7 +139,7 @@ def main():
     #--------------------------------------------------------------------------------#
     # read data from the source
     #--------------------------------------------------------------------------------#
-    im, gt, _, gt_file = read_data(os.path.expandvars('${DATA_DIR}/segmentation/{0}/{0}.nc').format(image_file))
+    im, gt, _, gt_file = read_data(os.path.expandvars(f'$DATA_DIR/segmentation/{image_file}/{image_file}.nc'))
     #im, _, _, _ = read_data(os.path.expandvars('${DATA_DIR}/segmentation/{0}/{0}.nc').format(image_file))
     #_, gt, _, gt_file = read_data(os.path.expandvars('${DATA_DIR}/segmentation/{0}/{0}.nc').format(groundtruth_file))
 
@@ -246,8 +246,8 @@ def main():
         #------------------------------------------------------------------------------------#
         vade = VaDE(input_dim=data_dim, z_dim=latent_dim, n_centroids=n_cl,
                 encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500],
-                one_by_delta_x=one_by_delta_x,regularization=args['regularizer'][0],
-                directory=final_directory,ignore_label=ignore_label_inside)
+                one_by_delta_x=one_by_delta_x, regularization=args['regularizer'][0],
+                directory=final_directory, ignore_label=ignore_label_inside)
         print('Initialized VaDE model.')
 
         #------------------------------------------------------------------------------------#
@@ -266,15 +266,17 @@ def main():
         y_pred = vade.fit(dataloader, valid_loader, lr=args['lr'], num_epochs=args['epochs'],
                           anneal=False, visualize=False)
 
+        print('Save found parameters...')
         if args['save'] != "":
-            print(f"Save weights at {args['save']}")
-            vade.save_model(args['save'])
-        print('Save found segmentation...')
+            save_location = args['save'].replace('.pt', f"_lam{args['regularizer'][0]}.pt")
+            print(f"Save weights at {save_location}")
+            vade.save_model(save_location)
 
-        colour_map = plt.get_cmap("tab20")
-        cmap_tensor = np.zeros((n_cl+1,3))
-        for i in range(n_cl+1):
-            cmap_tensor[i] = np.array(colour_map(i)[0:3])
+        print('Save found segmentation...')
+        # colour_map = plt.get_cmap("tab20")
+        # cmap_tensor = np.zeros((n_cl+1,3))
+        # for i in range(n_cl+1):
+            # cmap_tensor[i] = np.array(colour_map(i)[0:3])
 
         seg = np.zeros(shape=im.shape[:-1], dtype=np.uint8)
         print("seg shape",seg.shape)
@@ -285,8 +287,12 @@ def main():
                 filename = f'seg_{image_file}_ncl{n_cl}_ldim{latent_dim}_reg{args["regularizer"][0]}_all_pxs'
             seg = y_pred.reshape(im.shape[:-1])
             print(seg.shape)
-            saveColoredSegmentation(seg, f'{final_directory}/{filename}.png', cmap_tensor, ignore_label_inside,
-                                    True, gt)
+            save_gt_colored_segmentation(f'{final_directory}/{filename}_full.png', seg, gt_file, ignore_label_inside,
+                                         True, None, False, False)
+            save_gt_colored_segmentation(f'{final_directory}/{filename}_full.png', seg, gt_file, ignore_label_inside,
+                                         False, None, False, True)
+            # saveColoredSegmentation(seg, f'{final_directory}/{filename}.png', cmap_tensor, ignore_label_inside,
+                                    # True, gt)
             # saveColoredSegmentation('{}.png'.format(filename),
                                         #  seg, gt_file, None, True)
             saveArrayAsNetCDF(seg, f'{final_directory}/{filename}.nc')
@@ -307,7 +313,7 @@ def main():
         #---------------------------------------------------------------------------------------#
 
         print('Evaluate segmentation...')
-        score=segmentation_scores(seg, gt, ignore_label_inside)
+        score = segmentation_scores(seg, gt, ignore_label_inside)
         print(score)
         #---------------------------------------------------------------------------------------#
         #print the total time of execution
@@ -320,6 +326,8 @@ def main():
     trials=Trials()
     best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
                 rstate=np.random.default_rng(seed_hyp), trials=trials)
+
+    print(best)
 
     df = []
     for it in range(max_evals):
