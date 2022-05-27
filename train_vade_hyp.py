@@ -1,4 +1,6 @@
 #pylint: disable=no-member
+''' script to train vade with hyperopt '''
+
 import argparse
 import os
 import random
@@ -9,21 +11,22 @@ import numpy as np
 import pandas as pd
 import torch
 from hyperopt import Trials, fmin, hp, rand
+from netCDF4 import Dataset as ncDataset
+from sklearn.decomposition import PCA
+from spectral import calc_stats, mnf, noise_from_diffs
+from torch.utils.data import DataLoader, Dataset
+from vade import VaDE
+
 from msiplib.image.manipulators import normalize_image
 from msiplib.io import saveArrayAsNetCDF
 from msiplib.io.segmentation import (save_gt_colored_segmentation,
                                      saveColoredSegmentation)
 from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
-from netCDF4 import Dataset as ncDataset
-from sklearn.decomposition import PCA
-from spectral import calc_stats, mnf, noise_from_diffs
-from torch.utils.data import DataLoader, Dataset
-
-from vade import VaDE
 
 
 def parse_args():
+    ''' function to parse arguments '''
     parser = argparse.ArgumentParser(description='VaDE: Variational Deep Embedding')
     parser.add_argument('--lr', type=float, default=0.0001, metavar='N',
                         help='learning rate for training (default: 0.0001)')
@@ -43,6 +46,7 @@ def parse_args():
 
 
 def read_data(filename):
+    ''' read data: input image and ground truth '''
     #--------------------------------------------------------------------------------#
     # init dataset and data loader
     #--------------------------------------------------------------------------------#
@@ -73,6 +77,7 @@ def read_data(filename):
 
 
 class HSIDataset(Dataset):
+    ''' define HSI dataset '''
     def __init__(self, pts, labels):
         self.data = torch.from_numpy(pts).float()
         self.labels = torch.from_numpy(labels).int()
@@ -85,7 +90,7 @@ class HSIDataset(Dataset):
 
 
 def main():
-
+    ''' main function '''
     #------------------------------------------------------------------------------#
     # make argument compatible to hyperopt
     #------------------------------------------------------------------------------#
@@ -100,8 +105,8 @@ def main():
     random.seed(seed)
     torch.manual_seed(seed)
     np.random.seed(seed)
-    seed_hyp=seed
-    max_evals=25
+    seed_hyp = seed
+    max_evals = 25
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
@@ -250,7 +255,7 @@ def main():
         #------------------------------------------------------------------------------------#
 
         if args['pretrain'] != "":
-            print("Load model from {}...".format(args['pretrain']))
+            print(f"Load model from {args['pretrain']}...")
             vade.load_model(args['pretrain'])
             print('Loaded pretrained network weights.')
         print("Initializing through GMM...")
@@ -262,7 +267,7 @@ def main():
                           anneal=False, visualize=False)
 
         if args['save'] != "":
-            print('Save weights at {}'.format(args['save']))
+            print(f"Save weights at {args['save']}")
             vade.save_model(args['save'])
         print('Save found segmentation...')
 
@@ -280,7 +285,8 @@ def main():
                 filename = f'seg_{image_file}_ncl{n_cl}_ldim{latent_dim}_reg{args["regularizer"][0]}_all_pxs'
             seg = y_pred.reshape(im.shape[:-1])
             print(seg.shape)
-            saveColoredSegmentation(seg, f'{final_directory}/{filename}.png', cmap_tensor, ignore_label_inside, True, gt)
+            saveColoredSegmentation(seg, f'{final_directory}/{filename}.png', cmap_tensor, ignore_label_inside,
+                                    True, gt)
             # saveColoredSegmentation('{}.png'.format(filename),
                                         #  seg, gt_file, None, True)
             saveArrayAsNetCDF(seg, f'{final_directory}/{filename}.nc')
@@ -290,7 +296,8 @@ def main():
             else:
                 filename = f'seg_{image_file}_ncl{n_cl}_ldim{latent_dim}_reg{args["regularizer"][0]}_ignore_pxs'
             seg[gt != ignore_label] = y_pred + 1
-            saveColoredSegmentation(seg, f'{final_directory}/{filename}.png', cmap_tensor, ignore_label_inside, True, gt)
+            saveColoredSegmentation(seg, f'{final_directory}/{filename}.png', cmap_tensor, ignore_label_inside,
+                                    True, gt)
             # save_gt_colored_segmentation('{}.png'.format(filename),
                                         #  seg, gt_file, None, True)
             saveArrayAsNetCDF(seg, f'{final_directory}/{filename}.nc')
