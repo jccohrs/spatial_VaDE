@@ -242,7 +242,7 @@ def main():
         vade = VaDE(input_dim=data_dim, z_dim=latent_dim, n_centroids=n_cl,
                 encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500],
                 one_by_delta_x=one_by_delta_x,regularization=args['regularizer'][0],
-                directory=directory,ignore_label=ignore_label_inside)
+                directory=final_directory,ignore_label=ignore_label_inside)
         print('Initialized VaDE model.')
 
         #------------------------------------------------------------------------------------#
@@ -279,20 +279,20 @@ def main():
                 filename = 'seg_{}_ncl{}_ldim{}_reg{}_all_pxs'.format(image_file, n_cl, latent_dim,args['regularizer'][0]) 
             seg = y_pred.reshape(im.shape[:-1])
             print(seg.shape)
-            saveColoredSegmentation(seg, '{}/{}.png'.format(directory,filename), cmap_tensor, True, gt)
+            saveColoredSegmentation(seg, '{}/{}.png'.format(final_directory,filename), cmap_tensor, ignore_label_inside, True, gt)
             # saveColoredSegmentation('{}.png'.format(filename),
                                         #  seg, gt_file, None, True)
-            saveArrayAsNetCDF(seg, '{}/{}.nc'.format(directory,filename))
+            saveArrayAsNetCDF(seg, '{}/{}.nc'.format(final_directory,filename))
         else:
             if use_mnf:
-                filename = 'seg_{}_ncl{}_ldim{}_reg{}_mnf_igdirectorynore_pxs'.format(image_file, n_cl, latent_dim,args['regularizer'][0]) 
+                filename = 'seg_{}_ncl{}_ldim{}_reg{}_mnf_ignore_pxs'.format(image_file, n_cl, latent_dim,args['regularizer'][0]) 
             else:
                 filename = 'seg_{}_ncl{}_ldim{}_reg{}_ignore_pxs'.format(image_file, n_cl, latent_dim,args['regularizer'][0]) 
             seg[gt != ignore_label] = y_pred + 1
-            saveColoredSegmentation(seg, '{}/{}.png'.format(directory,filename), cmap_tensor, True, gt)
+            saveColoredSegmentation(seg, '{}/{}.png'.format(final_directory,filename), cmap_tensor, ignore_label_inside, True, gt)
             # save_gt_colored_segmentation('{}.png'.format(filename),
                                         #  seg, gt_file, None, True)
-            saveArrayAsNetCDF(seg, '{}/{}.nc'.format(directory,filename))
+            saveArrayAsNetCDF(seg, '{}/{}.nc'.format(final_directory,filename))
         
         #---------------------------------------------------------------------------------------#
         # evaluate segmentation
