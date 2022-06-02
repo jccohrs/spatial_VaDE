@@ -95,7 +95,7 @@ def main():
     # make argument compatible to hyperopt
     #------------------------------------------------------------------------------#
     args = parse_args()
-    args['regularizer'] = hp.uniform('regularizer', 0, 0.1),
+    args['regularizer'] = hp.uniform('regularizer', 0, 0.025),
     args['save'] = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade-tv/trained_vade.pt')
 
     #------------------------------------------------------------------------------#
@@ -129,7 +129,7 @@ def main():
     # check and create a folder to store all the data and figure
     #--------------------------------------------------------------------------------#
 
-    directory ='Salinas_0_01'
+    directory ='Salinas_0_0025'
     current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade-tv')
     # current_directory = os.getcwd()
     final_directory = os.path.join(current_directory+'/', directory)
@@ -333,8 +333,8 @@ def main():
     for it in range(max_evals):
         df_dict = {}
         df_dict["loss"]= -trials.results[it]['loss']
-        for key,value in trials.vals.items():
-            df_dict[key]=value[it]
+        for key, value in trials.vals.items():
+            df_dict[key] = value[it]
         df.append(df_dict)
 
     df = pd.DataFrame(df)
@@ -349,7 +349,7 @@ def main():
         plt.ylabel("loss")
         plt.scatter(df[col], df['loss'])
     ax.legend()
-    fig.savefig(final_directory + '/loss vs regulaizer')
+    fig.savefig(final_directory + '/loss vs regularizer')
     plt.show()
 
 if __name__ == "__main__":
