@@ -2,6 +2,7 @@
 ''' script to train vade with hyperopt '''
 
 import argparse
+import datetime
 import os
 import random
 import time
@@ -18,7 +19,7 @@ from torch.utils.data import DataLoader, Dataset
 from vade import VaDE
 
 from msiplib.image.manipulators import normalize_image
-from msiplib.io import saveArrayAsNetCDF
+from msiplib.io import saveArrayAsNetCDF, Tee
 from msiplib.io.segmentation import (save_gt_colored_segmentation, saveColoredSegmentation,
                                      visualize_correct_wrong_pixels)
 from msiplib.metrics import segmentation_scores
@@ -89,6 +90,106 @@ class HSIDataset(Dataset):
         return self.data.shape[0]
 
 
+def hyper_opt(args):
+    # TODO: Move hyperopt function outside of main to avoid problems with variables defined outside of hyperopt?
+    dataloader = args['dataloader']
+    validloader = args['validloader']
+    im = args['im']
+    gt = args['gt']
+
+    now = datetime.now()
+    time_stamp = '{}-{}-{}-{}-{}-{}'.format(now.year, now.month, now.day, now.hour, now.minute, now.second)
+
+    exp_spec_path = f'ldim{args["latent_dim"]}_reg{args["regularizer"][0]}'
+    exp_dir = f'{args["final_directory"]}/{time_stamp}-{exp_spec_path}'
+    if not os.path.exists(exp_dir):
+        os.mkdir(exp_dir)
+
+    with Tee(f'{exp_dir}/output-{exp_spec_path}.log'):
+
+        #--------------------------------------------------------------------------------#
+        #calculate the initial time
+        #--------------------------------------------------------------------------------#
+        start_time = time.time()
+        print('regularizer :', (args['regularizer'][0]))
+        #------------------------------------------------------------------------------------#
+        # init model
+        #------------------------------------------------------------------------------------#
+        vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
+                encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500],
+                one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'][0],
+                directory=args['final_directory'], ignore_label=args['ignore_label_inside'])
+        print('Initialized VaDE model.')
+
+        #------------------------------------------------------------------------------------#
+        # load pretrained models if provided
+        #------------------------------------------------------------------------------------#
+
+        if args['pretrain'] != "":
+            print(f"Load model from {args['pretrain']}...")
+            vade.load_model(args['pretrain'])
+            print('Loaded pretrained network weights.')
+        print("Initializing through GMM...")
+        vade.initialize_gmm(dataloader)
+        print("Initialized through GMM.")
+
+        print('Fit the model...')
+        y_pred = vade.fit(dataloader, validloader, lr=args['lr'], num_epochs=args['epochs'],
+                            anneal=False, visualize=False)
+
+        print('Save found parameters...')
+        if args['save'] != "":
+            save_location = args['save'].replace('.pt', f"_lam{args['regularizer'][0]}.pt")
+            print(f"Save weights at {save_location}")
+            vade.save_model(save_location)
+
+        print('Save found segmentation...')
+
+        seg = y_pred.reshape(im.shape[:-1]).astype(np.uint8)
+        print("seg shape",seg.shape)
+        if args['ignore_label'] is None:
+            if args['use_mnf']:
+                filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}_reg{args["regularizer"][0]}_mnf_all_pxs'
+            else:
+                filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}_reg{args["regularizer"][0]}_all_pxs'
+            print(seg.shape)
+            # save full segmentation
+            save_gt_colored_segmentation(f'{args["final_directory"]}/{filename}_full.png', seg, args['gt_file'], args['ignore_label_inside'],
+                                            True, None, False, False)
+            # save masked segmentation
+            save_gt_colored_segmentation(f'{args["final_directory"]}/{filename}_masked.png', seg, args['gt_file'], args['ignore_label_inside'],
+                                            False, None, False, True)
+            # save wrongly and correctly classified pixels
+            visualize_correct_wrong_pixels(f'{args["final_directory"]}/{filename}.png', seg, gt, args['gt_file'], args['ignore_label_inside'])
+            # store found segmentation as netCDF file
+            saveArrayAsNetCDF(seg, f'{args["final_directory"]}/{filename}.nc')
+        else:
+            # TODO: code ignoring pixels in computations outdated!
+            # if args['use_mnf']:
+            #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}_reg{args["regularizer"][0]}_mnf_ignore_pxs'
+            # else:
+            #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}_reg{args["regularizer"][0]}_ignore_pxs'
+            # seg[gt != ignore_label] = y_pred + 1
+            # saveColoredSegmentation(seg, f'"final_directory"/{filename}.png', None, args['ignore_label_inside'],
+            #                         True, gt)
+            saveArrayAsNetCDF(seg, f'{args["final_directory"]}/{filename}.nc')
+
+        #---------------------------------------------------------------------------------------#
+        # evaluate segmentation
+        #---------------------------------------------------------------------------------------#
+
+        print('Evaluate segmentation...')
+        score = segmentation_scores(seg, gt, args['ignore_label_inside'])
+        print(score)
+        #---------------------------------------------------------------------------------------#
+        #print the total time of execution
+        #---------------------------------------------------------------------------------------#
+
+        print(f"--- {(time.time() - start_time)} seconds ---")
+
+    return -score['overallAcc']
+
+
 def main():
     ''' main function '''
     #------------------------------------------------------------------------------#
@@ -110,64 +211,64 @@ def main():
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    image_file = 'Salinas'
+    args['image_file'] = 'Salinas'
     #groundtruth_file ='SalinasA'
 
 
     #------------------------------------------------------------------------------#
     # Specify the features
     #------------------------------------------------------------------------------#
-    n_cl =16 #6 #7
-    mnf_features =16 #6
-    latent_dim = 10
-    ignore_label = None
-    ignore_label_inside = 0
-    use_mnf = False
-    use_pca = False
-    use_pixel_space_cord = False
+    args['n_cl'] =16 #6 #7
+    args['mnf_features'] =16 #6
+    args['latent_dim'] = 10
+    args['ignore_label_inside'] = 0
+    args['ignore_label'] = None
+    args['use_mnf'] = False
+    args['use_pca'] = False
+    args['spatial_coord'] = False
     #--------------------------------------------------------------------------------#
     # check and create a folder to store all the data and figure
     #--------------------------------------------------------------------------------#
 
-    directory ='Salinas_0_0025'
+    directory =f'{args["image_file"]}_0_0025'
     current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade-tv')
     # current_directory = os.getcwd()
     final_directory = os.path.join(current_directory+'/', directory)
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
-
+    args['final_directory'] = final_directory
     #--------------------------------------------------------------------------------#
     # read data from the source
     #--------------------------------------------------------------------------------#
-    im, gt, _, gt_file = read_data(os.path.expandvars(f'$DATA_DIR/segmentation/{image_file}/{image_file}.nc'))
+    im, gt, _, args['gt_file'] = read_data(os.path.expandvars(f'$DATA_DIR/segmentation/{args["image_file"]}/{args["image_file"]}.nc'))
 
 
     #------------------------------------------------------------------------------#
     # apply MNF for denoising
     #------------------------------------------------------------------------------#
-    if use_mnf:
+    if args['use_mnf']:
         print('Denoise data with MNF...')
         sig = calc_stats(im)
         noise_dir = 'lowerright'
         noise = noise_from_diffs(im, direction=noise_dir)
         mnfr = mnf(sig, noise)
-        im = mnfr.reduce(im, num=mnf_features)
-        im = normalize_image(im)
+        im = mnfr.reduce(im, num=args['mnf_features'])
+        args['im'] = normalize_image(im)
         print('Finished denoising of data with MNF.')
     #------------------------------------------------------------------------------#
     # principal component analysis
     #------------------------------------------------------------------------------#
-    if use_pca:
+    if args['use_pca']:
         print('Data with PCA ...')
-        data_flat=im.reshape(im.shape[0]*im.shape[1],-1)
-        pca =PCA(n_components=0.9999)
-        data_pca=pca.fit_transform(data_flat)
-        im=data_pca.reshape(im.shape[0],im.shape[1],data_pca.shape[1])
+        data_flat = im.reshape(im.shape[0]*im.shape[1],-1)
+        pca = PCA(n_components=0.9999)
+        data_pca = pca.fit_transform(data_flat)
+        im = data_pca.reshape(im.shape[0],im.shape[1],data_pca.shape[1])
         print('Finished dimenionality reduction of data with PCA')
     #------------------------------------------------------------------------------#
     # adding spatial value of pixel
     #------------------------------------------------------------------------------#
-    if use_pixel_space_cord:
+    if args['spatial_coord']:
         dummy_x=(np.arange(im.shape[0])/(im.shape[0]-1)).reshape((im.shape[0],1))
         dummy_y=(np.arange(im.shape[1])/(im.shape[1]-1))
         dummy_zero=np.zeros((im.shape[0],im.shape[1]))
@@ -176,8 +277,10 @@ def main():
         im=np.dstack((im,norm_x_cor))
         im=np.dstack((im,norm_y_cor))
 
-    data_dim = im.shape[-1]
-    one_by_delta_x=max(im.shape[1],im.shape[0])
+    args['im'] = im
+    args['gt'] = gt
+    args['data_dim'] = im.shape[-1]
+    args['fd_inv_stepsize'] = max(im.shape[1],im.shape[0])
     #-----------------------------------------------------------------------------#
     # add the right and bottom part of the image to create a new data strucutre
     # so that we can use the variational method
@@ -208,16 +311,16 @@ def main():
     # remove pixels with ignore label
     #--------------------------------------------------------------------------------#
 
-    if ignore_label is None:
+    if args['ignore_label'] is None:
         #pxs = im.reshape((-1, im.shape[-1]))
         pxs = im_with_right_and_below
         lbs = np.ravel(gt)
     else:
-        #pxs = im[gt != ignore_label]
-        #lbs = gt[gt != ignore_label]
-        lbs = np.ravel(gt)
+        #pxs = im[gt != args['ignore_label']]
+        #lbs = gt[gt != args['ignore_label']]
         pxs = im_with_right_and_below
-        index = lbs!= ignore_label
+        lbs = np.ravel(gt)
+        index = lbs!= args['ignore_label']
         lbs = lbs[index]
         pxs = pxs[index]
     #----------------------------------------------------------------------------------#
@@ -228,94 +331,10 @@ def main():
 
     ds = HSIDataset(pxs, lbs)
 
-    dataloader = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=4, pin_memory=True)
-    valid_loader = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=4, pin_memory=True)
+    args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=4, pin_memory=True)
+    args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=4, pin_memory=True)
 
     print('Initialized dataset and dataloader.')
-
-    def hyper_opt(args):
-        # TODO: Move hyperopt function outside of main to avoid problems with variables defined outside of hyperopt?
-        #--------------------------------------------------------------------------------#
-        #calculate the initial time
-        #--------------------------------------------------------------------------------#
-        start_time = time.time()
-        print('regularizer :', (args['regularizer'][0]))
-        #------------------------------------------------------------------------------------#
-        # init model
-        #------------------------------------------------------------------------------------#
-        vade = VaDE(input_dim=data_dim, z_dim=latent_dim, n_centroids=n_cl,
-                encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500],
-                one_by_delta_x=one_by_delta_x, regularization=args['regularizer'][0],
-                directory=final_directory, ignore_label=ignore_label_inside)
-        print('Initialized VaDE model.')
-
-        #------------------------------------------------------------------------------------#
-        # load pretrained models if provided
-        #------------------------------------------------------------------------------------#
-
-        if args['pretrain'] != "":
-            print(f"Load model from {args['pretrain']}...")
-            vade.load_model(args['pretrain'])
-            print('Loaded pretrained network weights.')
-        print("Initializing through GMM...")
-        vade.initialize_gmm(dataloader)
-        print("Initialized through GMM.")
-
-        print('Fit the model...')
-        y_pred = vade.fit(dataloader, valid_loader, lr=args['lr'], num_epochs=args['epochs'],
-                          anneal=False, visualize=False)
-
-        print('Save found parameters...')
-        if args['save'] != "":
-            save_location = args['save'].replace('.pt', f"_lam{args['regularizer'][0]}.pt")
-            print(f"Save weights at {save_location}")
-            vade.save_model(save_location)
-
-        print('Save found segmentation...')
-
-        seg = y_pred.reshape(im.shape[:-1]).astype(np.uint8)
-        print("seg shape",seg.shape)
-        if ignore_label is None:
-            if use_mnf:
-                filename = f'seg_{image_file}_ncl{n_cl}_ldim{latent_dim}_reg{args["regularizer"][0]}_mnf_all_pxs'
-            else:
-                filename = f'seg_{image_file}_ncl{n_cl}_ldim{latent_dim}_reg{args["regularizer"][0]}_all_pxs'
-            print(seg.shape)
-            # save full segmentation
-            save_gt_colored_segmentation(f'{final_directory}/{filename}_full.png', seg, gt_file, ignore_label_inside,
-                                         True, None, False, False)
-            # save masked segmentation
-            save_gt_colored_segmentation(f'{final_directory}/{filename}_masked.png', seg, gt_file, ignore_label_inside,
-                                         False, None, False, True)
-            # save wrongly and correctly classified pixels
-            visualize_correct_wrong_pixels(f'{final_directory}/{filename}.png', seg, gt, gt_file, ignore_label_inside)
-            # store found segmentation as netCDF file
-            saveArrayAsNetCDF(seg, f'{final_directory}/{filename}.nc')
-        else:
-            # TODO: code ignoring pixels in computations outdated!
-            if use_mnf:
-                filename = f'seg_{image_file}_ncl{n_cl}_ldim{latent_dim}_reg{args["regularizer"][0]}_mnf_ignore_pxs'
-            else:
-                filename = f'seg_{image_file}_ncl{n_cl}_ldim{latent_dim}_reg{args["regularizer"][0]}_ignore_pxs'
-            seg[gt != ignore_label] = y_pred + 1
-            saveColoredSegmentation(seg, f'{final_directory}/{filename}.png', None, ignore_label_inside,
-                                    True, gt)
-            saveArrayAsNetCDF(seg, f'{final_directory}/{filename}.nc')
-
-        #---------------------------------------------------------------------------------------#
-        # evaluate segmentation
-        #---------------------------------------------------------------------------------------#
-
-        print('Evaluate segmentation...')
-        score = segmentation_scores(seg, gt, ignore_label_inside)
-        print(score)
-        #---------------------------------------------------------------------------------------#
-        #print the total time of execution
-        #---------------------------------------------------------------------------------------#
-
-        print(f"--- {(time.time() - start_time)} seconds ---")
-
-        return -score['overallAcc']
 
     trials=Trials()
     best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
