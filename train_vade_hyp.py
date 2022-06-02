@@ -19,8 +19,8 @@ from vade import VaDE
 
 from msiplib.image.manipulators import normalize_image
 from msiplib.io import saveArrayAsNetCDF
-from msiplib.io.segmentation import (save_gt_colored_segmentation,
-                                     saveColoredSegmentation)
+from msiplib.io.segmentation import (save_gt_colored_segmentation, saveColoredSegmentation,
+                                     visualize_correct_wrong_pixels)
 from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
 
@@ -234,6 +234,7 @@ def main():
     print('Initialized dataset and dataloader.')
 
     def hyper_opt(args):
+        # TODO: Move hyperopt function outside of main to avoid problems with variables defined outside of hyperopt?
         #--------------------------------------------------------------------------------#
         #calculate the initial time
         #--------------------------------------------------------------------------------#
@@ -272,30 +273,33 @@ def main():
 
         print('Save found segmentation...')
 
-        seg = np.zeros(shape=im.shape[:-1], dtype=np.uint8)
+        seg = y_pred.reshape(im.shape[:-1]).astype(np.uint8)
         print("seg shape",seg.shape)
         if ignore_label is None:
             if use_mnf:
                 filename = f'seg_{image_file}_ncl{n_cl}_ldim{latent_dim}_reg{args["regularizer"][0]}_mnf_all_pxs'
             else:
                 filename = f'seg_{image_file}_ncl{n_cl}_ldim{latent_dim}_reg{args["regularizer"][0]}_all_pxs'
-            seg = y_pred.reshape(im.shape[:-1])
             print(seg.shape)
+            # save full segmentation
             save_gt_colored_segmentation(f'{final_directory}/{filename}_full.png', seg, gt_file, ignore_label_inside,
                                          True, None, False, False)
-            save_gt_colored_segmentation(f'{final_directory}/{filename}_full.png', seg, gt_file, ignore_label_inside,
+            # save masked segmentation
+            save_gt_colored_segmentation(f'{final_directory}/{filename}_masked.png', seg, gt_file, ignore_label_inside,
                                          False, None, False, True)
+            # save wrongly and correctly classified pixels
+            visualize_correct_wrong_pixels(f'{final_directory}/{filename}.png', seg, gt, gt_file, ignore_label_inside)
+            # store found segmentation as netCDF file
             saveArrayAsNetCDF(seg, f'{final_directory}/{filename}.nc')
         else:
+            # TODO: code ignoring pixels in computations outdated!
             if use_mnf:
                 filename = f'seg_{image_file}_ncl{n_cl}_ldim{latent_dim}_reg{args["regularizer"][0]}_mnf_ignore_pxs'
             else:
                 filename = f'seg_{image_file}_ncl{n_cl}_ldim{latent_dim}_reg{args["regularizer"][0]}_ignore_pxs'
             seg[gt != ignore_label] = y_pred + 1
-            saveColoredSegmentation(seg, f'{final_directory}/{filename}.png', cmap_tensor, ignore_label_inside,
+            saveColoredSegmentation(seg, f'{final_directory}/{filename}.png', None, ignore_label_inside,
                                     True, gt)
-            # save_gt_colored_segmentation('{}.png'.format(filename),
-                                        #  seg, gt_file, None, True)
             saveArrayAsNetCDF(seg, f'{final_directory}/{filename}.nc')
 
         #---------------------------------------------------------------------------------------#
