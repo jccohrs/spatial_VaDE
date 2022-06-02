@@ -39,8 +39,8 @@ def parse_args():
                         help='path to pretrained model')
     parser.add_argument('--regularizer',type=float, default=0.01, metavar='N',
                         help='value for reularization')
-    parser.add_argument('--save', type=str, default="model_params/trained_vade.pt", metavar='N',
-                        help='path to location where to store the found weights')
+    parser.add_argument('--save', type=bool, default=True,
+                        help='If true, save founds weights after training.')
     args = parser.parse_args()
 
     return vars(args)
@@ -104,7 +104,7 @@ def hyper_opt(args):
     exp_dir = f'{args["final_directory"]}/{time_stamp}-{exp_spec_path}'
     if not os.path.exists(exp_dir):
         os.mkdir(exp_dir)
-
+    
     with Tee(f'{exp_dir}/output-{exp_spec_path}.log'):
 
         #--------------------------------------------------------------------------------#
@@ -138,8 +138,8 @@ def hyper_opt(args):
                             anneal=False, visualize=False)
 
         print('Save found parameters...')
-        if args['save'] != "":
-            save_location = args['save'].replace('.pt', f"_lam{args['regularizer'][0]}.pt")
+        if args['save']:
+            save_location = f"{exp_dir}/vade_params.pt"
             print(f"Save weights at {save_location}")
             vade.save_model(save_location)
 
@@ -196,8 +196,9 @@ def main():
     # make argument compatible to hyperopt
     #------------------------------------------------------------------------------#
     args = parse_args()
-    args['regularizer'] = hp.uniform('regularizer', 0, 0.025),
-    args['save'] = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade-tv/trained_vade.pt')
+    lam_lower = 0
+    lam_upper = 0.025
+    args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper),
 
     #------------------------------------------------------------------------------#
     # seed the randomness
@@ -230,13 +231,14 @@ def main():
     # check and create a folder to store all the data and figure
     #--------------------------------------------------------------------------------#
 
-    directory =f'{args["image_file"]}_0_0025'
+    directory =f'{args["image_file"]}_{lam_lower}_{str(lam_upper).replace(".", "_")}'
     current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade-tv')
     # current_directory = os.getcwd()
     final_directory = os.path.join(current_directory+'/', directory)
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
     args['final_directory'] = final_directory
+
     #--------------------------------------------------------------------------------#
     # read data from the source
     #--------------------------------------------------------------------------------#
