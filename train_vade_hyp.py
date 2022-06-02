@@ -140,8 +140,6 @@ def main():
     # read data from the source
     #--------------------------------------------------------------------------------#
     im, gt, _, gt_file = read_data(os.path.expandvars(f'$DATA_DIR/segmentation/{image_file}/{image_file}.nc'))
-    #im, _, _, _ = read_data(os.path.expandvars('${DATA_DIR}/segmentation/{0}/{0}.nc').format(image_file))
-    #_, gt, _, gt_file = read_data(os.path.expandvars('${DATA_DIR}/segmentation/{0}/{0}.nc').format(groundtruth_file))
 
 
     #------------------------------------------------------------------------------#
@@ -157,7 +155,7 @@ def main():
         im = normalize_image(im)
         print('Finished denoising of data with MNF.')
     #------------------------------------------------------------------------------#
-    # principal component analysi
+    # principal component analysis
     #------------------------------------------------------------------------------#
     if use_pca:
         print('Data with PCA ...')
@@ -273,10 +271,6 @@ def main():
             vade.save_model(save_location)
 
         print('Save found segmentation...')
-        # colour_map = plt.get_cmap("tab20")
-        # cmap_tensor = np.zeros((n_cl+1,3))
-        # for i in range(n_cl+1):
-            # cmap_tensor[i] = np.array(colour_map(i)[0:3])
 
         seg = np.zeros(shape=im.shape[:-1], dtype=np.uint8)
         print("seg shape",seg.shape)
@@ -291,10 +285,6 @@ def main():
                                          True, None, False, False)
             save_gt_colored_segmentation(f'{final_directory}/{filename}_full.png', seg, gt_file, ignore_label_inside,
                                          False, None, False, True)
-            # saveColoredSegmentation(seg, f'{final_directory}/{filename}.png', cmap_tensor, ignore_label_inside,
-                                    # True, gt)
-            # saveColoredSegmentation('{}.png'.format(filename),
-                                        #  seg, gt_file, None, True)
             saveArrayAsNetCDF(seg, f'{final_directory}/{filename}.nc')
         else:
             if use_mnf:
