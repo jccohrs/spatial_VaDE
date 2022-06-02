@@ -2,7 +2,6 @@
 ''' script to train vade with hyperopt '''
 
 import argparse
-import datetime
 import os
 import random
 import time
@@ -11,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
+from datetime import datetime
 from hyperopt import Trials, fmin, hp, rand
 from netCDF4 import Dataset as ncDataset
 from sklearn.decomposition import PCA
@@ -100,7 +100,7 @@ def hyper_opt(args):
     now = datetime.now()
     time_stamp = '{}-{}-{}-{}-{}-{}'.format(now.year, now.month, now.day, now.hour, now.minute, now.second)
 
-    exp_spec_path = f'ldim{args["latent_dim"]}_reg{args["regularizer"][0]}'
+    exp_spec_path = f'ldim{args["latent_dim"]}_reg{str(args["regularizer"][0]).replace(".", "_")}'
     exp_dir = f'{args["final_directory"]}/{time_stamp}-{exp_spec_path}'
     if not os.path.exists(exp_dir):
         os.mkdir(exp_dir)
@@ -139,30 +139,31 @@ def hyper_opt(args):
 
         print('Save found parameters...')
         if args['save']:
-            save_location = f"{exp_dir}/vade_params.pt"
+            save_location = f"{exp_dir}/vade_params-{exp_spec_path}.pt"
             print(f"Save weights at {save_location}")
             vade.save_model(save_location)
 
         print('Save found segmentation...')
 
         seg = y_pred.reshape(im.shape[:-1]).astype(np.uint8)
-        print("seg shape",seg.shape)
+        print(f'Labels in segmentation: {np.unique(seg)}')
+        print(f'Number of labels in seg: {len(np.unique(seg))}')
+
         if args['ignore_label'] is None:
             if args['use_mnf']:
-                filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}_reg{args["regularizer"][0]}_mnf_all_pxs'
+                filename = f'seg-{exp_spec_path}_mnf_all_pxs'
             else:
-                filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}_reg{args["regularizer"][0]}_all_pxs'
-            print(seg.shape)
+                filename = f'seg-{exp_spec_path}_all_pxs'
             # save full segmentation
-            save_gt_colored_segmentation(f'{args["final_directory"]}/{filename}_full.png', seg, args['gt_file'], args['ignore_label_inside'],
+            save_gt_colored_segmentation(f'{exp_dir}/{filename}_full.png', seg, args['gt_file'], args['ignore_label_inside'],
                                             True, None, False, False)
             # save masked segmentation
-            save_gt_colored_segmentation(f'{args["final_directory"]}/{filename}_masked.png', seg, args['gt_file'], args['ignore_label_inside'],
+            save_gt_colored_segmentation(f'{exp_dir}/{filename}_masked.png', seg, args['gt_file'], args['ignore_label_inside'],
                                             False, None, False, True)
             # save wrongly and correctly classified pixels
-            visualize_correct_wrong_pixels(f'{args["final_directory"]}/{filename}.png', seg, gt, args['gt_file'], args['ignore_label_inside'])
+            visualize_correct_wrong_pixels(f'{exp_dir}/{filename}.png', seg, gt, args['gt_file'], args['ignore_label_inside'])
             # store found segmentation as netCDF file
-            saveArrayAsNetCDF(seg, f'{args["final_directory"]}/{filename}.nc')
+            saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
         else:
             # TODO: code ignoring pixels in computations outdated!
             # if args['use_mnf']:
@@ -172,7 +173,7 @@ def hyper_opt(args):
             # seg[gt != ignore_label] = y_pred + 1
             # saveColoredSegmentation(seg, f'"final_directory"/{filename}.png', None, args['ignore_label_inside'],
             #                         True, gt)
-            saveArrayAsNetCDF(seg, f'{args["final_directory"]}/{filename}.nc')
+            saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
 
         #---------------------------------------------------------------------------------------#
         # evaluate segmentation
@@ -208,7 +209,7 @@ def main():
     torch.manual_seed(seed)
     np.random.seed(seed)
     seed_hyp = seed
-    max_evals = 25
+    max_evals = 2
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
@@ -342,7 +343,8 @@ def main():
     best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
                 rstate=np.random.default_rng(seed_hyp), trials=trials)
 
-    print(best)
+    with open(f'{final_directory}/hyperopt_best.txt', 'a', encoding='utf-8') as f:
+        f.write(str(best))
 
     df = []
     for it in range(max_evals):
