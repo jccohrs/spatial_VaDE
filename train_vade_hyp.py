@@ -343,14 +343,17 @@ def main():
     else:
         print("The file does not exist")
     df.to_csv(final_directory + '/hyp_Salinas.txt', sep=" ", index=False, mode='a')
-    fig, ax = plt.subplots()
-    for col in df.columns:
-        plt.xlabel(col)
-        plt.ylabel("loss")
-        plt.scatter(df[col], df['loss'])
-    ax.legend()
+    fig, ax = plt.subplots(len(df.columns) - 1)
+    for i in range(1, len(df.columns)):
+        if len(df.columns) - 1 == 1:
+            ax.scatter(df[df.columns[i]], df['loss'])
+            ax.set(xlabel=df.columns[i], ylabel='OA')
+        else:
+            ax[i - 1].scatter(df[df.columns[i]], df['loss'])
+            ax[i - 1].set(xlabel=df.columns[i], ylabel='OA')
+    
     fig.savefig(final_directory + '/loss vs regularizer')
-    plt.show()
+    fig.show()
 
 if __name__ == "__main__":
     main()
