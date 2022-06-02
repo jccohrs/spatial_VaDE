@@ -4,6 +4,7 @@
 import argparse
 import os
 import random
+import re
 import time
 
 import matplotlib.pyplot as plt
@@ -44,6 +45,47 @@ def parse_args():
     args = parser.parse_args()
 
     return vars(args)
+
+
+def parse_log(path_to_log):
+    """Parse log file
+    """
+
+    regex_epoch = re.compile(r'#Epoch(\s+)(\d+)')
+    regex_train_loss = re.compile(r'Train Loss: (-?\d+\.?\d*)')
+    regex_valid_loss = re.compile(r'Valid Loss: (-?\d+\.?\d*)')
+    regex_accuracy = re.compile(r'acc: (\d+\.?\d*)')
+
+    df = []
+    with open(path_to_log, 'r') as f:
+        for line in f:
+            epoch_match = regex_epoch.search(line)
+            train_loss_match = regex_train_loss.search(line)
+            valid_loss_match = regex_valid_loss.search(line)
+            accuracy_match = regex_accuracy.search(line)
+            
+            if epoch_match:
+                epoch = int(epoch_match.group(2))
+            if train_loss_match:
+                train_loss = float(train_loss_match.group(1))
+            if valid_loss_match:
+                valid_loss = float(valid_loss_match.group(1))
+            if accuracy_match:
+                accuracy = float(accuracy_match.group(1))
+            
+            if epoch_match and epoch != -1:
+                df.append({'epoch': epoch, 'train loss': train_loss, 'valid loss': valid_loss, 'accuracy': accuracy})
+
+    return pd.DataFrame(df)
+
+
+def plot_stats(path, data):
+    fig, ax = plt.subplots(3)
+    for i in range(1, len(data.columns)):
+        ax[i - 1].scatter(data[data.columns[0]], data[data.columns[i]])
+        ax[i - 1].set(xlabel=data.columns[0], ylabel=data.columns[i])
+    
+    fig.savefig(f'{path}/plot_stats.png')
 
 
 def read_data(filename):
@@ -91,7 +133,6 @@ class HSIDataset(Dataset):
 
 
 def hyper_opt(args):
-    # TODO: Move hyperopt function outside of main to avoid problems with variables defined outside of hyperopt?
     dataloader = args['dataloader']
     validloader = args['validloader']
     im = args['im']
@@ -105,7 +146,8 @@ def hyper_opt(args):
     if not os.path.exists(exp_dir):
         os.mkdir(exp_dir)
     
-    with Tee(f'{exp_dir}/output-{exp_spec_path}.log'):
+    logfile_path = f'{exp_dir}/output-{exp_spec_path}.log'
+    with Tee(logfile_path):
 
         #--------------------------------------------------------------------------------#
         #calculate the initial time
@@ -188,6 +230,11 @@ def hyper_opt(args):
 
         print(f"--- {(time.time() - start_time)} seconds ---")
 
+    # parse log file, store the extracted values and plot the stats
+    df_log = parse_log(logfile_path)
+    df_log.to_csv(f'{exp_dir}/exp_stats.csv', sep=',', header=True, index=False)
+    plot_stats(exp_dir, df_log)
+
     return -score['overallAcc']
 
 
@@ -209,18 +256,17 @@ def main():
     torch.manual_seed(seed)
     np.random.seed(seed)
     seed_hyp = seed
-    max_evals = 2
+    max_evals = 25
+
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    args['image_file'] = 'Salinas'
-    #groundtruth_file ='SalinasA'
-
+    args['image_file'] = 'SalinasA'
 
     #------------------------------------------------------------------------------#
     # Specify the features
     #------------------------------------------------------------------------------#
-    args['n_cl'] =16 #6 #7
+    args['n_cl'] =6 #6 #7
     args['mnf_features'] =16 #6
     args['latent_dim'] = 10
     args['ignore_label_inside'] = 0
