@@ -6,12 +6,12 @@ import os
 import random
 import re
 import time
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-from datetime import datetime
 from hyperopt import Trials, fmin, hp, rand
 from netCDF4 import Dataset as ncDataset
 from sklearn.decomposition import PCA
@@ -21,7 +21,7 @@ from vade import VaDE
 
 from msiplib.image.manipulators import normalize_image
 from msiplib.io import saveArrayAsNetCDF, Tee
-from msiplib.io.segmentation import (save_gt_colored_segmentation, saveColoredSegmentation,
+from msiplib.io.segmentation import (save_gt_colored_segmentation,
                                      visualize_correct_wrong_pixels)
 from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
@@ -57,7 +57,7 @@ def parse_log(path_to_log):
     regex_accuracy = re.compile(r'acc: (\d+\.?\d*)')
 
     df = []
-    with open(path_to_log, 'r') as f:
+    with open(path_to_log, 'r', encoding='utf-8') as f:
         for line in f:
             epoch_match = regex_epoch.search(line)
             train_loss_match = regex_train_loss.search(line)
@@ -136,13 +136,14 @@ class HSIDataset(Dataset):
 
 
 def hyper_opt(args):
+    ''' optimize over regularization parameter using hyperopt '''
     dataloader = args['dataloader']
     validloader = args['validloader']
     im = args['im']
     gt = args['gt']
 
     now = datetime.now()
-    time_stamp = '{}-{}-{}-{}-{}-{}'.format(now.year, now.month, now.day, now.hour, now.minute, now.second)
+    time_stamp = f'{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}-{now.second}'
 
     exp_spec_path = f'ldim{args["latent_dim"]}_reg{str(args["regularizer"][0]).replace(".", "_")}'
     exp_dir = f'{args["final_directory"]}/{time_stamp}-{exp_spec_path}'
@@ -200,21 +201,24 @@ def hyper_opt(args):
             else:
                 filename = f'seg-{exp_spec_path}_all_pxs'
             # save full segmentation
-            save_gt_colored_segmentation(f'{exp_dir}/{filename}_full.png', seg, args['gt_file'], args['ignore_label_inside'],
-                                            True, None, False, False)
+            save_gt_colored_segmentation(f'{exp_dir}/{filename}_full.png', seg, args['gt_file'],
+                                         args['ignore_label_inside'], True, None, False, False)
             # save masked segmentation
-            save_gt_colored_segmentation(f'{exp_dir}/{filename}_masked.png', seg, args['gt_file'], args['ignore_label_inside'],
-                                            False, None, False, True)
+            save_gt_colored_segmentation(f'{exp_dir}/{filename}_masked.png', seg, args['gt_file'],
+                                         args['ignore_label_inside'], False, None, False, True)
             # save wrongly and correctly classified pixels
-            visualize_correct_wrong_pixels(f'{exp_dir}/{filename}.png', seg, gt, args['gt_file'], args['ignore_label_inside'])
+            visualize_correct_wrong_pixels(f'{exp_dir}/{filename}.png', seg, gt, args['gt_file'],
+                                           args['ignore_label_inside'])
             # store found segmentation as netCDF file
             saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
         else:
             # TODO: code ignoring pixels in computations outdated!
             # if args['use_mnf']:
-            #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}_reg{args["regularizer"][0]}_mnf_ignore_pxs'
+            #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}\\
+            # _reg{args["regularizer"][0]}_mnf_ignore_pxs'
             # else:
-            #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}_reg{args["regularizer"][0]}_ignore_pxs'
+            #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}\\
+            # _reg{args["regularizer"][0]}_ignore_pxs'
             # seg[gt != ignore_label] = y_pred + 1
             # saveColoredSegmentation(seg, f'"final_directory"/{filename}.png', None, args['ignore_label_inside'],
             #                         True, gt)
@@ -249,7 +253,7 @@ def main():
     args = parse_args()
     lam_lower = 0
     lam_upper = 0.025
-    args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper),
+    args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
 
     #------------------------------------------------------------------------------#
     # seed the randomness
@@ -292,7 +296,8 @@ def main():
     #--------------------------------------------------------------------------------#
     # read data from the source
     #--------------------------------------------------------------------------------#
-    im, gt, _, args['gt_file'] = read_data(os.path.expandvars(f'$DATA_DIR/segmentation/{args["image_file"]}/{args["image_file"]}.nc'))
+    data_path = f'$DATA_DIR/segmentation/{args["image_file"]}/{args["image_file"]}.nc'
+    im, gt, _, args['gt_file'] = read_data(os.path.expandvars(data_path))
 
 
     #------------------------------------------------------------------------------#
