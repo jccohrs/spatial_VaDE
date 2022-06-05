@@ -145,7 +145,7 @@ def hyper_opt(args):
     now = datetime.now()
     time_stamp = f'{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}-{now.second}'
 
-    exp_spec_path = f'ldim{args["latent_dim"]}_reg{str(args["regularizer"][0]).replace(".", "_")}'
+    exp_spec_path = f'ldim{args["latent_dim"]}_reg{str(args["regularizer"]).replace(".", "_")}'
     exp_dir = f'{args["final_directory"]}/{time_stamp}-{exp_spec_path}'
     if not os.path.exists(exp_dir):
         os.mkdir(exp_dir)
@@ -157,13 +157,13 @@ def hyper_opt(args):
         #calculate the initial time
         #--------------------------------------------------------------------------------#
         start_time = time.time()
-        print('regularizer :', (args['regularizer'][0]))
+        print('regularizer :', (args['regularizer']))
         #------------------------------------------------------------------------------------#
         # init model
         #------------------------------------------------------------------------------------#
         vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
                 encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500],
-                one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'][0],
+                one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
                 directory=args['final_directory'], ignore_label=args['ignore_label_inside'])
         print('Initialized VaDE model.')
 
@@ -215,10 +215,10 @@ def hyper_opt(args):
             # TODO: code ignoring pixels in computations outdated!
             # if args['use_mnf']:
             #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}\\
-            # _reg{args["regularizer"][0]}_mnf_ignore_pxs'
+            # _reg{args["regularizer"]}_mnf_ignore_pxs'
             # else:
             #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}\\
-            # _reg{args["regularizer"][0]}_ignore_pxs'
+            # _reg{args["regularizer"]}_ignore_pxs'
             # seg[gt != ignore_label] = y_pred + 1
             # saveColoredSegmentation(seg, f'"final_directory"/{filename}.png', None, args['ignore_label_inside'],
             #                         True, gt)
@@ -253,7 +253,8 @@ def main():
     args = parse_args()
     lam_lower = 0
     lam_upper = 0.025
-    args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
+    # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
+    args['regularizer'] = 0
 
     #------------------------------------------------------------------------------#
     # seed the randomness
@@ -263,7 +264,7 @@ def main():
     torch.manual_seed(seed)
     np.random.seed(seed)
     seed_hyp = seed
-    max_evals = 25
+    max_evals = 1
 
     #------------------------------------------------------------------------------#
     # Read the input image file
