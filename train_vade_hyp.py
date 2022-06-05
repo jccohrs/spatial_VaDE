@@ -63,7 +63,7 @@ def parse_log(path_to_log):
             train_loss_match = regex_train_loss.search(line)
             valid_loss_match = regex_valid_loss.search(line)
             accuracy_match = regex_accuracy.search(line)
-            
+
             if epoch_match:
                 epoch = int(epoch_match.group(2))
             if train_loss_match:
@@ -72,7 +72,7 @@ def parse_log(path_to_log):
                 valid_loss = float(valid_loss_match.group(1))
             if accuracy_match:
                 accuracy = float(accuracy_match.group(1))
-            
+
             if epoch_match and epoch != -1:
                 df.append({'epoch': epoch, 'train loss': train_loss, 'valid loss': valid_loss, 'accuracy': accuracy})
 
@@ -80,12 +80,15 @@ def parse_log(path_to_log):
 
 
 def plot_stats(path, data):
-    fig, ax = plt.subplots(3)
+    ''' plot training statistics '''
     for i in range(1, len(data.columns)):
-        ax[i - 1].scatter(data[data.columns[0]], data[data.columns[i]])
-        ax[i - 1].set(xlabel=data.columns[0], ylabel=data.columns[i])
-    
-    fig.savefig(f'{path}/plot_stats.png')
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.plot(data[data.columns[0]], data[data.columns[i]])
+        ax.plot(data[data.columns[0]], pd.Series(data[data.columns[i]]).rolling(11).mean())
+        ax.set(xlabel=data.columns[0], ylabel=data.columns[i])
+
+        fig.savefig(f'{path}-{data.columns[i].replace(" ","-")}.png')
 
 
 def read_data(filename):
@@ -145,7 +148,7 @@ def hyper_opt(args):
     exp_dir = f'{args["final_directory"]}/{time_stamp}-{exp_spec_path}'
     if not os.path.exists(exp_dir):
         os.mkdir(exp_dir)
-    
+
     logfile_path = f'{exp_dir}/output-{exp_spec_path}.log'
     with Tee(logfile_path):
 
@@ -414,7 +417,7 @@ def main():
         else:
             ax[i - 1].scatter(df[df.columns[i]], df['loss'])
             ax[i - 1].set(xlabel=df.columns[i], ylabel='OA')
-    
+
     fig.savefig(final_directory + '/loss vs regularizer')
     fig.show()
 
