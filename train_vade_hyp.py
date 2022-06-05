@@ -240,7 +240,7 @@ def hyper_opt(args):
     # parse log file, store the extracted values and plot the stats
     df_log = parse_log(logfile_path)
     df_log.to_csv(f'{exp_dir}/exp_stats.csv', sep=',', header=True, index=False)
-    plot_stats(exp_dir, df_log)
+    plot_stats(f'{exp_dir}/plot_stats', df_log)
 
     return -score['overallAcc']
 
