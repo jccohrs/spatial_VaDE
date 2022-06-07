@@ -1,29 +1,23 @@
-#pylint: disable=no_member
+#pylint: disable=import-outside-toplevel,no-member
 
-# TODO: variablen Bezeichnungen vereinheitlichen
-
-
-from numpy.core.numeric import NaN
-import torch
-from datetime import datetime
-from torch.autograd.function import Function
-import torch.nn as nn
-import torch.optim as optim
-import matplotlib.pyplot as plt
-from torch.autograd import Variable
-from torch.utils import data
-from torchvision.utils import save_image
-from sklearn.manifold import TSNE
+import math
 
 import numpy as np
-import math
+import torch
+import matplotlib.pyplot as plt
+from torch import nn
+from torch import optim
+from torch.autograd import Variable
+from sklearn.manifold import TSNE
 from sklearn.mixture import GaussianMixture
 
+
 def cluster_acc(Y_pred, Y, ignore_label=None):
+    ''' compute overall accuracy of clustering '''
     if ignore_label is not None:
         index = Y!= ignore_label
-        Y=Y[index]
-        Y_pred=Y_pred[index]
+        Y = Y[index]
+        Y_pred = Y_pred[index]
     from scipy.optimize import linear_sum_assignment as linear_assignment
     assert Y_pred.size == Y.size
     D = max(Y_pred.max(), Y.max()) + 1
@@ -55,6 +49,7 @@ def buildNetwork(layers, activation="relu", dropout=0):
         # add activation function
         #--------------------------------------------------------------------------------#
         if activation == "relu":
+            # TODO: which activation do we use? relu also in original vade?
             net.append(nn.ReLU())
             #net.append(nn.LeakyReLU())
         elif activation == "sigmoid":
@@ -81,9 +76,11 @@ def adjust_learning_rate(init_lr, optimizer, epoch):
 
 log2pi = math.log(2 * math.pi)
 def log_likelihood_samples_unit_gaussian(samples):
+    #TODO: derive formula and compare
     return -0.5 * log2pi * samples.size()[1] - torch.sum(0.5 * (samples) ** 2, 1)
 
 def log_likelihood_samplesImean_sigma(samples, mu, logvar):
+    #TODO: derive formula and compare
     #--------------------------------------------------------------------------------#
     # computes the log of the joint probability of samples wrt to mean mu and variance (log of variance) logvar
     #--------------------------------------------------------------------------------#
@@ -142,6 +139,7 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         #object for softmax
         #--------------------------------------------------------------------------------#
+        # TODO: where do we need the softmax function?
         self.soft_max=nn.Softmax(dim=0)
 
         #--------------------------------------------------------------------------------#
@@ -153,8 +151,8 @@ class VaDE(nn.Module):
         # Ignore label variable
         #--------------------------------------------------------------------------------#
         self.ignore_label = ignore_label
-    
-        
+
+
     def initialize_gmm(self, dataloader):
         #--------------------------------------------------------------------------------#
         # iniitialize GMM by applying the encoder and computing the z's that can then be clustered with the GMM
@@ -162,7 +160,7 @@ class VaDE(nn.Module):
         use_cuda = torch.cuda.is_available()
         if use_cuda:
             self.cuda()
-        
+
         #--------------------------------------------------------------------------------#
         # put model into evaluation mode
         #--------------------------------------------------------------------------------#
@@ -219,7 +217,7 @@ class VaDE(nn.Module):
         log_sigma_x = self._dec_log_sigma(h)
         return mu_x, log_sigma_x
 
-    
+
     def get_gamma(self, z):
         Z = z.unsqueeze(2)
 
@@ -228,7 +226,7 @@ class VaDE(nn.Module):
 
         gamma = p_c_z / torch.sum(p_c_z, dim=1, keepdim=True)
         return gamma
-    
+
     def loss_function(self, inputs, mu_x, logvar_x, z, z_mean, z_log_var,z_right,z_bottom):
         Z=z.unsqueeze(2)
 
@@ -275,22 +273,22 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         logqcx = torch.sum(torch.log(torch.clamp(gamma, min=1e-10)) * gamma, 1)
 
-    
+
         #--------------------------------------------------------------------------------#
         # Regularize with gamma=q(c|x)
         #--------------------------------------------------------------------------------#
         delta_qcx_right = self.one_by_delta_x *(gamma_right -gamma)
         delta_qcx_bottom =self.one_by_delta_x *(gamma_bottom -gamma)
-        
+
         square_sum_qcx = (delta_qcx_right)**2 + (delta_qcx_bottom)**2
-        
+
         norm_qcx = (square_sum_qcx+0.01) ** (0.5)
-        
+
         #--------------------------------------------------------------------------------#
-        # final loss function 
+        # final loss function
         #--------------------------------------------------------------------------------#
         loss = torch.mean(log_pxz + logpzc + logpc + qentropy + logqcx) + self.lambdas * torch.mean(torch.sum(norm_qcx,1))
-        
+
         return loss
 
     def forward(self, x):
@@ -364,7 +362,7 @@ class VaDE(nn.Module):
 
             loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar)
             valid_loss += loss.data.item() * len(inputs)
-            
+
             #--------------------------------------------------------------------------------#
             # compute gamma for whole evaluation batch
             #--------------------------------------------------------------------------------#
@@ -420,11 +418,11 @@ class VaDE(nn.Module):
 
             Z.append(z.detach().cpu().numpy())
             Y.append(labels.numpy())
-            
+
             loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
-            
+
             valid_loss += loss.data.item() * len(inputs)
-        
+
         if visualize:
             Y = np.concatenate(Y)
             Z = np.concatenate(Z)
@@ -435,11 +433,11 @@ class VaDE(nn.Module):
         # Valid loss of initialized weights
         #--------------------------------------------------------------------------------#
         print("#Epoch -1: Valid Loss: %.5f" % (valid_loss / len(validloader.dataset)))
-        
+
         #--------------------------------------------------------------------------------#
         # train num_epochs
         #--------------------------------------------------------------------------------#
-    
+
         for epoch in range(num_epochs):
             self.train()
             #--------------------------------------------------------------------------------#
@@ -459,13 +457,13 @@ class VaDE(nn.Module):
                     inputs = inputs.cuda()
                 optimizer.zero_grad()
                 inputs = Variable(inputs)
-                
+
                 data_dim =int(inputs.shape[1]/3)
                 z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:,0:data_dim])
                 z_right, _, _, _,_ = self.forward(inputs[:,data_dim:2*data_dim])
                 z_bottom, _, _, _,_= self.forward(inputs[:,2*data_dim:3*data_dim])
-                
-                
+
+
 
                 loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar,z_right,z_bottom)
 
@@ -502,7 +500,7 @@ class VaDE(nn.Module):
                 #--------------------------------------------------------------------------------#
                 gamma = self.get_gamma(z).data.cpu().numpy()
                 Y.append(labels.numpy())
-                
+
                 #--------------------------------------------------------------------------------#
                 # compute predicted labels by taking the argmax over gamma (q(c | z))
                 #--------------------------------------------------------------------------------#
