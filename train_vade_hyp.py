@@ -152,7 +152,7 @@ def hyper_opt(args):
 
     logfile_path = f'{exp_dir}/output-{exp_spec_path}.log'
     with Tee(logfile_path):
-
+        print(f'Working on image {args["image_file"]}...')
         #--------------------------------------------------------------------------------#
         #calculate the initial time
         #--------------------------------------------------------------------------------#
@@ -269,7 +269,7 @@ def main():
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    args['image_file'] = 'IndianPines'
+    args['image_file'] = 'Salinas'
 
     #------------------------------------------------------------------------------#
     # Specify the features
