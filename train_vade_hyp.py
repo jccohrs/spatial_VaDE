@@ -269,13 +269,13 @@ def main():
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    args['image_file'] = 'SalinasA'
+    args['image_file'] = 'IndianPines'
 
     #------------------------------------------------------------------------------#
     # Specify the features
     #------------------------------------------------------------------------------#
-    args['n_cl'] =6 #6 #7
-    args['mnf_features'] =16 #6
+    args['n_cl'] = 16 #6 #7
+    args['mnf_features'] = 16 #6
     args['latent_dim'] = 10
     args['ignore_label_inside'] = 0
     args['ignore_label'] = None
@@ -410,11 +410,13 @@ def main():
         df.append(df_dict)
 
     df = pd.DataFrame(df)
-    if os.path.exists(final_directory + "/hyp_Salinas.txt"):
-        os.remove(final_directory + "/hyp_Salinas.txt")
+    
+    output_hyperopt = f'{final_directory}/hyp_{args["image_file"]}.txt'
+    if os.path.exists(output_hyperopt):
+        os.remove(output_hyperopt)
     else:
         print("The file does not exist")
-    df.to_csv(final_directory + '/hyp_Salinas.txt', sep=" ", index=False, mode='a')
+    df.to_csv(output_hyperopt, sep=" ", index=False, mode='a')
     fig, ax = plt.subplots(len(df.columns) - 1)
     for i in range(1, len(df.columns)):
         if len(df.columns) - 1 == 1:
