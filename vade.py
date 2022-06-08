@@ -176,6 +176,7 @@ class VaDE(nn.Module):
             data_dim = int(inputs.shape[1] / 3)
             z, _, _, _, _ = self.forward(inputs[:, 0:data_dim])
 
+            # GMM fitted on cpu, therefore moving data to cpu is okay.
             data.append(z.data.cpu().numpy())
 
         data = np.concatenate(data)
@@ -194,8 +195,6 @@ class VaDE(nn.Module):
         self.prior_init.data.copy_(torch.from_numpy(gmm.weights_.T.astype(np.float32)))
         self.mean_init.data.copy_(torch.from_numpy(gmm.means_.T.astype(np.float32)))
         self.log_var_init.data.copy_(torch.from_numpy(np.log(gmm.covariances_.T.astype(np.float32))))
-        # TODO: Remove print statement if data on GPU
-        print(self.prior_init.data.device)
 
     def reparameterize(self, mu, logvar):
         # TODO: Check for correctness. does it work with batches of data?
@@ -226,18 +225,19 @@ class VaDE(nn.Module):
         return gamma
 
     def loss_function(self, inputs, mu_x, logvar_x, z, z_mean, z_log_var,z_right,z_bottom):
+        # TODO: revisit function and remove unnecessary parts
         Z=z.unsqueeze(2)
 
         Z_right=z_right.unsqueeze(2)
         Z_bottom=z_bottom.unsqueeze(2)
 
-        z_mean_t=z_mean.unsqueeze(2)
-        z_log_var_t=z_log_var.unsqueeze(2)
-        gamma= self.get_gamma(z)
+        z_mean_t = z_mean.unsqueeze(2)
+        z_log_var_t = z_log_var.unsqueeze(2)
+        gamma = self.get_gamma(z)
 
-        gamma_right= self.get_gamma(z_right)
-        gamma_bottom= self.get_gamma(z_bottom)
-        x=inputs[:,0:int(inputs.shape[1]/3)]
+        gamma_right = self.get_gamma(z_right)
+        gamma_bottom = self.get_gamma(z_bottom)
+        x = inputs[:, 0:int(inputs.shape[1] / 3)]
 
         self.prior_init.data.copy_(self.soft_max(self.prior_init))
         #--------------------------------------------------------------------------------#
@@ -275,17 +275,17 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # Regularize with gamma=q(c|x)
         #--------------------------------------------------------------------------------#
-        delta_qcx_right = self.one_by_delta_x *(gamma_right -gamma)
-        delta_qcx_bottom =self.one_by_delta_x *(gamma_bottom -gamma)
+        delta_qcx_right = self.one_by_delta_x * (gamma_right - gamma)
+        delta_qcx_bottom =self.one_by_delta_x * (gamma_bottom - gamma)
 
         square_sum_qcx = (delta_qcx_right)**2 + (delta_qcx_bottom)**2
 
-        norm_qcx = (square_sum_qcx+0.01) ** (0.5)
+        norm_qcx = (square_sum_qcx + 0.01)**(0.5)
 
         #--------------------------------------------------------------------------------#
         # final loss function
         #--------------------------------------------------------------------------------#
-        loss = torch.mean(log_pxz + logpzc + logpc + qentropy + logqcx) + self.lambdas * torch.mean(torch.sum(norm_qcx,1))
+        loss = torch.mean(log_pxz + logpzc + logpc + qentropy + logqcx) + self.lambdas * torch.mean(torch.sum(norm_qcx, 1))
 
         return loss
 
@@ -325,8 +325,6 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
-        # TODO: Remove print statement if eveything is on GPU here
-        print(next(self.parameters()).is_cuda)
 
     def visualize_state(self, z, y, epoch):
         # TODO: replace by torch-tsne
@@ -343,19 +341,13 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # apply model with current weights to a dataset
         #--------------------------------------------------------------------------------#
-
-        use_cuda = torch.cuda.is_available()
-        if use_cuda:
-            self.cuda()
-
+        # TODO: need to be revisited: Not applying regularizer and not checked for gpu/cpu usage!
         self.eval()
         valid_loss = 0.0
         Y_pred = []
         Y = []
         Z = []
-        for batch_idx, (inputs, labels) in enumerate(dataloader):
-            if use_cuda:
-                inputs = inputs.cuda()
+        for _, (inputs, labels) in enumerate(dataloader):
             inputs = Variable(inputs)
             z, mu, logvar, mu_x, logvar_x = self.forward(inputs)
 
@@ -390,8 +382,7 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # train the model
         #--------------------------------------------------------------------------------#
-        # TODO: remove if on GPU
-        print(f'model: {self.device}')
+
         #--------------------------------------------------------------------------------#
         # initial optimizer. the filter function only passes the parameters to Adam that need gradient
         #--------------------------------------------------------------------------------#
@@ -402,20 +393,19 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         self.eval()
         valid_loss = 0.0
+        # TODO: Z and Y in torch on gpu?
         Z = []
         Y = []
         for _, (inputs, labels) in enumerate(validloader):
-            # TODO: remove if on GPU
-            print(f'Inputs: {inputs.device}')
             inputs = Variable(inputs)
 
             data_dim = int(inputs.shape[1] / 3)
             z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
 
-            z_right, _, _, _,_ = self.forward(inputs[:, data_dim:2 * data_dim])
-            z_bottom, _, _, _,_= self.forward(inputs[:, 2 * data_dim:3 * data_dim])
+            z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
+            z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
 
-            # TODO: Necessary to have it in numpy on gpu?
+            # TODO: Necessary to have it in numpy on cpu?
             Z.append(z.detach().cpu().numpy())
             Y.append(labels.cpu().numpy())
 
@@ -455,14 +445,12 @@ class VaDE(nn.Module):
             train_loss = 0
             for _, (inputs, _) in enumerate(trainloader):
                 optimizer.zero_grad()
-                # TODO: remove if on GPU
-                print(f'Training inputs: {inputs.device}')
                 inputs = Variable(inputs)
 
                 data_dim =int(inputs.shape[1] / 3)
                 z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
-                z_right, _, _, _,_ = self.forward(inputs[:, data_dim:2 * data_dim])
-                z_bottom, _, _, _,_= self.forward(inputs[:, 2 * data_dim:3 * data_dim])
+                z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
+                z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
 
                 loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
 
@@ -480,8 +468,6 @@ class VaDE(nn.Module):
             Z = []
             for _, (inputs, labels) in enumerate(validloader):
                 inputs = Variable(inputs)
-                # TODO: remove if on GPU
-                print(f'Eval inputs: {inputs.device}')
 
                 data_dim = int(inputs.shape[1] / 3)
                 z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
@@ -498,13 +484,14 @@ class VaDE(nn.Module):
                 #--------------------------------------------------------------------------------#
                 # compute gamma for whole evaluation batch
                 #--------------------------------------------------------------------------------#
-                gamma = self.get_gamma(z).data.cpu().numpy()
-                Y.append(labels.numpy())
+                gamma = self.get_gamma(z).detach()
 
                 #--------------------------------------------------------------------------------#
                 # compute predicted labels by taking the argmax over gamma (q(c | z))
                 #--------------------------------------------------------------------------------#
-                Y_pred.append(np.argmax(gamma, axis=1))
+                # TODO: Can the ccomputations be made with torch on GPU?
+                Y_pred.append(torch.argmax(gamma, dim=1).cpu().numpy())
+                Y.append(labels.cpu().numpy())
 
             Y = np.concatenate(Y)
             Y_pred = np.concatenate(Y_pred)
@@ -515,9 +502,9 @@ class VaDE(nn.Module):
                 epoch, epoch_lr, train_loss / len(trainloader.dataset), valid_loss / len(validloader.dataset), acc[0]))
 
             #if visualize and epoch % 50 == 0:
-            if visualize and epoch == (num_epochs-1):
+            if visualize and epoch == (num_epochs - 1):
                 print('Plot current latent space.')
-                # TODO: this visualization uses predicted labels, so one after init uses true labels. Not comparable!
+                # TODO: this visualization uses predicted labels, so one after init uses true labels. Not comparable! Implement in torch!
                 self.visualize_state(Z, Y_pred, epoch=epoch)
 
         return Y_pred

@@ -152,9 +152,9 @@ def read_data(filename):
 
 class HSIDataset(Dataset):
     ''' define HSI dataset '''
-    def __init__(self, pts, labels):
-        self.data = torch.from_numpy(pts).float()
-        self.labels = torch.from_numpy(labels).int()
+    def __init__(self, pts, labels, device='cuda'):
+        self.data = torch.from_numpy(pts).float().to(device)
+        self.labels = torch.from_numpy(labels).int().to(device)
 
     def __getitem__(self, item):
         return self.data[item], self.labels[item]
@@ -165,11 +165,6 @@ class HSIDataset(Dataset):
 
 def hyper_opt(args):
     ''' optimize over regularization parameter using hyperopt '''
-    dataloader = args['dataloader']
-    validloader = args['validloader']
-    im = args['im']
-    gt = args['gt']
-
     now = datetime.now()
     time_stamp = f'{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}-{now.second}'
 
@@ -181,11 +176,18 @@ def hyper_opt(args):
     logfile_path = f'{exp_dir}/output-{exp_spec_path}.log'
     with Tee(logfile_path):
         print(f'Working on image {args["image_file"]}...')
+        print(f'Device: {args["device"]}')
+        dataloader = args['dataloader']
+        validloader = args['validloader']
+        
+        # im and gt not involved in computation on GPU
+        im = args['im']
+        gt = args['gt']
         #--------------------------------------------------------------------------------#
         #calculate the initial time
         #--------------------------------------------------------------------------------#
         start_time = time.time()
-        print('regularizer :', (args['regularizer']))
+        print(f'regularizer : {args["regularizer"]}')
         #------------------------------------------------------------------------------------#
         # init model
         #------------------------------------------------------------------------------------#
@@ -194,6 +196,8 @@ def hyper_opt(args):
                 one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
                 directory=args['final_directory'], ignore_label=args['ignore_label_inside'])
         print('Initialized VaDE model.')
+        vade.to(args['device'])
+        print(f'Pushed model to {args["device"]}.')
 
         #------------------------------------------------------------------------------------#
         # load pretrained models if provided
@@ -209,12 +213,12 @@ def hyper_opt(args):
 
         print('Fit the model...')
         y_pred = vade.fit(dataloader, validloader, lr=args['lr'], num_epochs=args['epochs'],
-                            anneal=False, visualize=False)
+                          anneal=False, visualize=False)
 
         print('Save found parameters...')
         if args['save']:
-            save_location = f"{exp_dir}/vade_params-{exp_spec_path}.pt"
-            print(f"Save weights at {save_location}")
+            save_location = f'{exp_dir}/vade_params-{exp_spec_path}.pt'
+            print(f'Save weights at {save_location}')
             vade.save_model(save_location)
 
         print('Save found segmentation...')
@@ -282,7 +286,7 @@ def main():
     lam_lower = 0
     lam_upper = 0.025
     # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
-    args['regularizer'] = 0.1
+    args['regularizer'] = 0.01
 
     #------------------------------------------------------------------------------#
     # seed the randomness
@@ -315,9 +319,7 @@ def main():
     #--------------------------------------------------------------------------------#
 
     directory =f'{args["image_file"]}'
-    # directory =f'{args["image_file"]}_{lam_lower}_{str(lam_upper).replace(".", "_")}'
     current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade-tv')
-    # current_directory = os.getcwd()
     final_directory = os.path.join(current_directory+'/', directory)
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
@@ -416,11 +418,11 @@ def main():
     if lbs is not None:
         lbs = rebuild_segment_numbering(lbs)
 
-    ds = HSIDataset(pxs, lbs)
+    args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
+    ds = HSIDataset(pxs, lbs, args['device'])
 
-    args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=4, pin_memory=True)
-    args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=4, pin_memory=True)
-
+    args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False)
+    args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=0, pin_memory=False)
     print('Initialized dataset and dataloader.')
 
     trials=Trials()
@@ -438,11 +440,13 @@ def main():
             df_dict[key] = value[it]
         df.append(df_dict)
 
+    # TODO: Fix problem with the case when a fixed lambda is given. In that case only loss and not lambda are stored in df.
+
     df = pd.DataFrame(df)
 
     # append results of hyperopt run to csv file
     output_hyperopt = f'{final_directory}/hyp_{args["image_file"]}.txt'
-    df.to_csv(output_hyperopt, sep=" ", index=False, mode='a')
+    df.to_csv(output_hyperopt, sep=" ", index=False, mode='a', header=False)
 
     # read the full hyperopt results file and update the plot
     df = pd.read_csv(output_hyperopt, sep=' ', header=0)
