@@ -430,7 +430,7 @@ class VaDE(nn.Module):
             self.visualize_state(Z, Y, epoch=-1)
 
         #--------------------------------------------------------------------------------#
-        # Valid loss of initialized weights
+        # Valid loss of initialized weights computed over the whole dataset
         #--------------------------------------------------------------------------------#
         print("#Epoch -1: Valid Loss: %.5f" % (valid_loss / len(validloader.dataset)))
 
@@ -517,7 +517,7 @@ class VaDE(nn.Module):
             #if visualize and epoch % 50 == 0:
             if visualize and epoch == (num_epochs-1):
                 print('Plot current latent space.')
-                # TODO: this visualization uses predicted labels, so one after init uses true labels. Not comparable!
+                # TODO: this visualization uses predicted labels, the one after init uses true labels. Not comparable!
                 self.visualize_state(Z, Y_pred, epoch=epoch)
 
         return Y_pred
