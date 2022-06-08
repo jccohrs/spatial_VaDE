@@ -45,11 +45,47 @@ def parse_log(path_to_log):
 
 def plot_stats(path, data):
     ''' plot training statistics '''
-    for i in range(1, len(data.columns)):
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.plot(data[data.columns[0]], data[data.columns[i]])
-        ax.plot(data[data.columns[0]], pd.Series(data[data.columns[i]]).rolling(11).mean())
-        ax.set(xlabel=data.columns[0], ylabel=data.columns[i])
+    averaging_width = 11
+    # plot train loss
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_title('Training loss')
+    ax.plot(data['epoch'], data['train loss'], label='Raw')
+    ax.plot(data['epoch'], pd.Series(data['train loss']).rolling(averaging_width).mean(),
+            label=f'Smoothed (width {averaging_width})')
+    ax.set_ylim(bottom=-1200, top=0)
+    ax.set(xlabel='Epoch', ylabel='Train loss')
+    ax.legend()
+    fig.savefig(f'{path}-train-loss.png')
 
-        fig.savefig(f'{path}-{data.columns[i].replace(" ","-")}.png')
+    # plot validation loss
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_title('Validation loss')
+    ax.plot(data['epoch'], data['valid loss'], label='Raw')
+    ax.plot(data['epoch'], pd.Series(data['valid loss']).rolling(averaging_width).mean(),
+            label=f'Smoothed (width {averaging_width})')
+    ax.set_ylim(bottom=-1200, top=0)
+    ax.set(xlabel='Epoch', ylabel='Validation loss')
+    ax.legend()
+    fig.savefig(f'{path}-valid-loss.png')
+
+    # plot accuracy
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.set_title('Overall accuracy')
+    ax.plot(data['epoch'], data['accuracy'], label='Raw')
+    ax.plot(data['epoch'], pd.Series(data['accuracy']).rolling(averaging_width).mean(),
+            label=f'Smoothed (width {averaging_width})')
+    ax.set_ylim(bottom=0, top=1)
+    ax.set(xlabel='Epoch', ylabel='Accuracy')
+    ax.legend()
+    fig.savefig(f'{path}-accuracy.png')
+
+
+def main():
+    d = parse_log('/Users/jan/sciebo/output/segmentation/vade-tv/SalinasA_0_0_025/2022-6-7-14-58-20-ldim10_reg0/output-ldim10_reg0.log')
+    plot_stats('/Users/jan/Desktop/plot_stats', d)
+
+if __name__ == "__main__":
+    main()
