@@ -254,7 +254,7 @@ def main():
     lam_lower = 0
     lam_upper = 0.025
     # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
-    args['regularizer'] = 0
+    args['regularizer'] = 0.1
 
     #------------------------------------------------------------------------------#
     # seed the randomness
@@ -269,7 +269,7 @@ def main():
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    args['image_file'] = 'Salinas'
+    args['image_file'] = 'IndianPines'
 
     #------------------------------------------------------------------------------#
     # Specify the features
@@ -286,7 +286,8 @@ def main():
     # check and create a folder to store all the data and figure
     #--------------------------------------------------------------------------------#
 
-    directory =f'{args["image_file"]}_{lam_lower}_{str(lam_upper).replace(".", "_")}'
+    directory =f'{args["image_file"]}'
+    # directory =f'{args["image_file"]}_{lam_lower}_{str(lam_upper).replace(".", "_")}'
     current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade-tv')
     # current_directory = os.getcwd()
     final_directory = os.path.join(current_directory+'/', directory)
@@ -412,10 +413,10 @@ def main():
     df = pd.DataFrame(df)
 
     output_hyperopt = f'{final_directory}/hyp_{args["image_file"]}.txt'
-    if os.path.exists(output_hyperopt):
-        os.remove(output_hyperopt)
-    else:
-        print("The file does not exist")
+    # if os.path.exists(output_hyperopt):
+        # os.remove(output_hyperopt)
+    # else:
+        # print("The file does not exist")
     df.to_csv(output_hyperopt, sep=" ", index=False, mode='a')
     fig, ax = plt.subplots(len(df.columns) - 1)
     for i in range(1, len(df.columns)):
