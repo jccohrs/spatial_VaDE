@@ -377,22 +377,22 @@ def main():
     im_with_right_and_below = np.zeros((im.shape[0] * im.shape[1], 3 * im.shape[2]))
     for i in range(im.shape[0]):
         for j in range(im.shape[1]):
-            if (j<(im.shape[1] -1)) and (i<(im.shape[0] -1)):
-                im_with_right_and_below[i*im.shape[1]+j,0:im.shape[2]]=im[i,j,:]
-                im_with_right_and_below[i*im.shape[1]+j,im.shape[2]:2*im.shape[2]]=im[i,j+1,:]
-                im_with_right_and_below[i*im.shape[1]+j,2*im.shape[2]:3*im.shape[2]]=im[i+1,j,:]
-            elif (j==(im.shape[1] -1)) and (i<(im.shape[0] -1)):
-                im_with_right_and_below[i*im.shape[1]+j,0:im.shape[2]]=im[i,j,:]
-                im_with_right_and_below[i*im.shape[1]+j,im.shape[2]:2*im.shape[2]]=im[i,j,:] #
-                im_with_right_and_below[i*im.shape[1]+j,2*im.shape[2]:3*im.shape[2]]=im[i+1,j,:]
-            elif (j<(im.shape[1] -1)) and (i==(im.shape[0] -1)):
-                im_with_right_and_below[i*im.shape[1]+j,0:im.shape[2]]=im[i,j,:]
-                im_with_right_and_below[i*im.shape[1]+j,im.shape[2]:2*im.shape[2]]=im[i,j+1,:]
-                im_with_right_and_below[i*im.shape[1]+j,2*im.shape[2]:3*im.shape[2]]=im[i,j,:] #
+            if (j < (im.shape[1] - 1)) and (i < (im.shape[0] - 1)):
+                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j + 1, :]
+                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i + 1, j, :]
+            elif (j == (im.shape[1] - 1)) and (i < (im.shape[0] - 1)):
+                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j, :] #
+                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i + 1, j, :]
+            elif (j < (im.shape[1] - 1)) and (i == (im.shape[0] - 1)):
+                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j + 1, :]
+                im_with_right_and_below[i * im.shape[1] + j, 2*im.shape[2]:3 * im.shape[2]] = im[i, j, :] #
             else:
-                im_with_right_and_below[i*im.shape[1]+j,0:im.shape[2]]=im[i,j,:]
-                im_with_right_and_below[i*im.shape[1]+j,im.shape[2]:2*im.shape[2]]=im[i,j,:] #
-                im_with_right_and_below[i*im.shape[1]+j,2*im.shape[2]:3*im.shape[2]]=im[i,j,:] #
+                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j, :] #
+                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i, j, :] #
 
     #--------------------------------------------------------------------------------#
     # remove pixels with ignore label
