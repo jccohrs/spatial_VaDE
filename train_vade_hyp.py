@@ -145,7 +145,7 @@ def hyper_opt(args):
     now = datetime.now()
     time_stamp = f'{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}-{now.second}'
 
-    exp_spec_path = f'ldim{args["latent_dim"]}_reg{str(args["regularizer"]).replace(".", "_")}'
+    exp_spec_path = f'epochs{args["epochs"]}_ldim{args["latent_dim"]}_reg{str(args["regularizer"]).replace(".", "_")}'
     exp_dir = f'{args["final_directory"]}/{time_stamp}-{exp_spec_path}'
     if not os.path.exists(exp_dir):
         os.mkdir(exp_dir)
@@ -410,7 +410,7 @@ def main():
         df.append(df_dict)
 
     df = pd.DataFrame(df)
-    
+
     output_hyperopt = f'{final_directory}/hyp_{args["image_file"]}.txt'
     if os.path.exists(output_hyperopt):
         os.remove(output_hyperopt)
