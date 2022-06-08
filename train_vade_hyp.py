@@ -412,12 +412,12 @@ def main():
 
     df = pd.DataFrame(df)
 
+    # append results of hyperopt run to csv file
     output_hyperopt = f'{final_directory}/hyp_{args["image_file"]}.txt'
-    # if os.path.exists(output_hyperopt):
-        # os.remove(output_hyperopt)
-    # else:
-        # print("The file does not exist")
     df.to_csv(output_hyperopt, sep=" ", index=False, mode='a')
+
+    # read the full hyperopt results file and update the plot
+    df = pd.read_csv(output_hyperopt, sep=' ', header=0)
     fig, ax = plt.subplots(len(df.columns) - 1)
     for i in range(1, len(df.columns)):
         if len(df.columns) - 1 == 1:
@@ -427,8 +427,7 @@ def main():
             ax[i - 1].scatter(df[df.columns[i]], df['loss'])
             ax[i - 1].set(xlabel=df.columns[i], ylabel='OA')
 
-    fig.savefig(final_directory + '/loss vs regularizer')
-    fig.show()
+    fig.savefig(f'{final_directory}/lambda_vs_OA.png')
 
 if __name__ == "__main__":
     main()
