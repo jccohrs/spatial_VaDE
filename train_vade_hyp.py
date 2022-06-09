@@ -82,7 +82,7 @@ def parse_log(path_to_log):
 def plot_stats(path, data):
     ''' plot training statistics '''
     averaging_width = 11
-    ylim_lower = 1300
+    ylim_lower = -1300
     # plot train loss
     fig = plt.figure()
     ax = fig.add_subplot(111)
