@@ -82,6 +82,7 @@ def parse_log(path_to_log):
 def plot_stats(path, data):
     ''' plot training statistics '''
     averaging_width = 11
+    ylim_lower = 1300
     # plot train loss
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -89,7 +90,7 @@ def plot_stats(path, data):
     ax.plot(data['epoch'], data['train loss'], label='Raw')
     ax.plot(data['epoch'], pd.Series(data['train loss']).rolling(averaging_width).mean(),
             label=f'Smoothed (width {averaging_width})')
-    ax.set_ylim(bottom=-1200, top=0)
+    ax.set_ylim(bottom=ylim_lower, top=0)
     ax.set(xlabel='Epoch', ylabel='Train loss')
     ax.legend()
     fig.savefig(f'{path}-train-loss.png')
@@ -101,7 +102,7 @@ def plot_stats(path, data):
     ax.plot(data['epoch'], data['valid loss'], label='Raw')
     ax.plot(data['epoch'], pd.Series(data['valid loss']).rolling(averaging_width).mean(),
             label=f'Smoothed (width {averaging_width})')
-    ax.set_ylim(bottom=-1200, top=0)
+    ax.set_ylim(bottom=ylim_lower, top=0)
     ax.set(xlabel='Epoch', ylabel='Validation loss')
     ax.legend()
     fig.savefig(f'{path}-valid-loss.png')
