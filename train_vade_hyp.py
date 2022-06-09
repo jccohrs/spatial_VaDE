@@ -302,12 +302,12 @@ def main():
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    args['image_file'] = 'Salinas'
+    args['image_file'] = 'SalinasA'
 
     #------------------------------------------------------------------------------#
     # Specify the features
     #------------------------------------------------------------------------------#
-    args['n_cl'] = 16 #6 #7
+    args['n_cl'] = 6 #6 #7
     args['mnf_features'] = 16 #6
     args['latent_dim'] = 10
     args['ignore_label_inside'] = 0
@@ -434,12 +434,18 @@ def main():
         f.write(str(best))
 
     df = []
-    for it in range(max_evals):
-        df_dict = {}
-        df_dict["loss"]= -trials.results[it]['loss']
-        for key, value in trials.vals.items():
-            df_dict[key] = value[it]
+    if type(args['regularizer']) is not type(hp.uniform('dummy', 0, 1)):
+        # handle case when lambda is set to a fixed value
+        df_dict = {'regularizer': args['regularizer']}
+        df_dict['loss']= -trials.results[0]['loss']
         df.append(df_dict)
+    else:
+        for it in range(max_evals):
+            df_dict = {}
+            for key, value in trials.vals.items():
+                df_dict[key] = value[it]
+            df_dict['loss']= -trials.results[it]['loss']
+            df.append(df_dict)
 
     # TODO: Fix problem with the case when a fixed lambda is given. In that case only loss and not lambda are stored in df.
 
@@ -447,18 +453,23 @@ def main():
 
     # append results of hyperopt run to csv file
     output_hyperopt = f'{final_directory}/hyp_{args["image_file"]}.txt'
-    df.to_csv(output_hyperopt, sep=" ", index=False, mode='a', header=False)
+    if os.path.exists(output_hyperopt):
+        # if file already exists, append to it
+        df.to_csv(output_hyperopt, sep=" ", index=False, mode='a', header=False)
+    else:
+        # it file does not exist, create a new one
+        df.to_csv(output_hyperopt, sep=" ", index=False, mode='w', header=True)
 
     # read the full hyperopt results file and update the plot
     df = pd.read_csv(output_hyperopt, sep=' ', header=0)
     fig, ax = plt.subplots(len(df.columns) - 1)
-    for i in range(1, len(df.columns)):
+    for i in range(len(df.columns) - 1):
         if len(df.columns) - 1 == 1:
             ax.scatter(df[df.columns[i]], df['loss'])
             ax.set(xlabel=df.columns[i], ylabel='OA')
         else:
-            ax[i - 1].scatter(df[df.columns[i]], df['loss'])
-            ax[i - 1].set(xlabel=df.columns[i], ylabel='OA')
+            ax[i].scatter(df[df.columns[i]], df['loss'])
+            ax[i].set(xlabel=df.columns[i], ylabel='OA')
 
     fig.savefig(f'{final_directory}/lambda_vs_OA.png')
 
