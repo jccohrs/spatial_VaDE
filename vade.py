@@ -1,4 +1,4 @@
-#pylint: disable=import-outside-toplevel,no-member
+#pylint: disable=no-member
 
 import math
 
@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from torch import nn
 from torch import optim
 from torch.autograd import Variable
+from scipy.optimize import linear_sum_assignment as linear_assignment
 from sklearn.manifold import TSNE
 from sklearn.mixture import GaussianMixture
 
@@ -18,7 +19,6 @@ def cluster_acc(Y_pred, Y, ignore_label=None):
         index = Y!= ignore_label
         Y = Y[index]
         Y_pred = Y_pred[index]
-    from scipy.optimize import linear_sum_assignment as linear_assignment
     assert Y_pred.size == Y.size
     D = max(Y_pred.max(), Y.max()) + 1
     w = np.zeros((D, D), dtype=np.int64)
@@ -318,7 +318,7 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # extract all weights available in the loaded ones and also in the module itself
         #--------------------------------------------------------------------------------#
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}  # pylint: disable=unsupported-membership-test
 
         #--------------------------------------------------------------------------------#
         # copy weights to model
@@ -336,7 +336,8 @@ class VaDE(nn.Module):
             points = z_tsne[y == t]
             ax.scatter(points[:, 0], points[:, 1], color=cmap(t), label=str(t),s=1)
         ax.legend()
-        fig.savefig('{}/latent_epoch_{}_reg_{}.png'.format(self.directory,epoch,self.lambdas))
+        fig.savefig(f'{self.directory}/latent_epoch{epoch}_reg{self.lambdas}.png')
+
     def predict(self, dataloader):
         #--------------------------------------------------------------------------------#
         # apply model with current weights to a dataset
