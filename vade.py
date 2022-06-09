@@ -471,8 +471,8 @@ class VaDE(nn.Module):
 
                 data_dim = int(inputs.shape[1] / 3)
                 z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
-                z_right, _, _, _,_ = self.forward(inputs[:, data_dim:2 * data_dim])
-                z_bottom, _, _, _,_= self.forward(inputs[:, 2 * data_dim:3 * data_dim])
+                z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
+                z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
 
                 # TODO: Necessary to push on CPU?
                 Z.append(z.detach().cpu().numpy())
