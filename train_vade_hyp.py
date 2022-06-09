@@ -195,7 +195,7 @@ def hyper_opt(args):
         vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
                 encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500],
                 one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
-                directory=args['final_directory'], ignore_label=args['ignore_label_inside'])
+                directory=exp_dir, ignore_label=args['ignore_label_inside'])
         print('Initialized VaDE model.')
         vade.to(args['device'])
         print(f'Pushed model to {args["device"]}.')
@@ -214,7 +214,7 @@ def hyper_opt(args):
 
         print('Fit the model...')
         y_pred = vade.fit(dataloader, validloader, lr=args['lr'], num_epochs=args['epochs'],
-                          anneal=False, visualize=False)
+                          anneal=False, visualize=args['visualize'])
 
         print('Save found parameters...')
         if args['save']:
@@ -287,7 +287,7 @@ def main():
     lam_lower = 0
     lam_upper = 0.025
     # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
-    args['regularizer'] = 0.001
+    args['regularizer'] = 0.1
 
     #------------------------------------------------------------------------------#
     # seed the randomness
@@ -308,6 +308,7 @@ def main():
     # Specify the features
     #------------------------------------------------------------------------------#
     args['n_cl'] = 6 #6 #7
+    args['visualize'] = True
     args['mnf_features'] = 16 #6
     args['latent_dim'] = 10
     args['ignore_label_inside'] = 0
