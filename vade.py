@@ -1,4 +1,4 @@
-#pylint: disable=import-outside-toplevel,no-member
+#pylint: disable=no-member
 
 import math
 
@@ -8,9 +8,11 @@ import matplotlib.pyplot as plt
 from torch import nn
 from torch import optim
 from torch.autograd import Variable
-from sklearn.manifold import TSNE
+from scipy.optimize import linear_sum_assignment as linear_assignment
+from tsnecuda import TSNE
 from sklearn.mixture import GaussianMixture
 
+from msiplib.segmentation import create_segmentation_colormap
 
 def cluster_acc(Y_pred, Y, ignore_label=None):
     ''' compute overall accuracy of clustering '''
@@ -18,7 +20,6 @@ def cluster_acc(Y_pred, Y, ignore_label=None):
         index = Y!= ignore_label
         Y = Y[index]
         Y_pred = Y_pred[index]
-    from scipy.optimize import linear_sum_assignment as linear_assignment
     assert Y_pred.size == Y.size
     D = max(Y_pred.max(), Y.max()) + 1
     w = np.zeros((D, D), dtype=np.int64)
@@ -318,7 +319,7 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # extract all weights available in the loaded ones and also in the module itself
         #--------------------------------------------------------------------------------#
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}  # pylint: disable=unsupported-membership-test
 
         #--------------------------------------------------------------------------------#
         # copy weights to model
@@ -326,17 +327,18 @@ class VaDE(nn.Module):
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
 
-    def visualize_state(self, z, y, epoch):
-        # TODO: replace by torch-tsne
-        tsne = TSNE(n_components=2, init='pca')
+    def visualize_latent_space(self, z, y, epoch):
+        ''' visualize latent space using t-SNE '''
+        tsne = TSNE(n_components=2, init='random')
         z_tsne = tsne.fit_transform(z)
         fig, ax = plt.subplots()
-        cmap = plt.get_cmap("tab20")
+        cmap = create_segmentation_colormap()
         for t in range(self.n_centroids):
             points = z_tsne[y == t]
-            ax.scatter(points[:, 0], points[:, 1], color=cmap(t), label=str(t),s=1)
+            ax.scatter(points[:, 0], points[:, 1], color=cmap[t], label=str(t), s=1)
         ax.legend()
-        fig.savefig('{}/latent_epoch_{}_reg_{}.png'.format(self.directory,epoch,self.lambdas))
+        fig.savefig(f'{self.directory}/latent_epoch{epoch}_reg{self.lambdas}.png')
+
     def predict(self, dataloader):
         #--------------------------------------------------------------------------------#
         # apply model with current weights to a dataset
@@ -418,7 +420,7 @@ class VaDE(nn.Module):
             Y = np.concatenate(Y)
             Z = np.concatenate(Z)
             # TODO: this visualization uses true labels, so one after finishing an epoch uses predicted labels. Not comparable!
-            self.visualize_state(Z, Y, epoch=-1)
+            self.visualize_latent_space(Z, Y, epoch=-1)
 
         #--------------------------------------------------------------------------------#
         # Valid loss of initialized weights computed over the whole dataset
@@ -471,8 +473,8 @@ class VaDE(nn.Module):
 
                 data_dim = int(inputs.shape[1] / 3)
                 z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
-                z_right, _, _, _,_ = self.forward(inputs[:, data_dim:2 * data_dim])
-                z_bottom, _, _, _,_= self.forward(inputs[:, 2 * data_dim:3 * data_dim])
+                z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
+                z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
 
                 # TODO: Necessary to push on CPU?
                 Z.append(z.detach().cpu().numpy())
@@ -501,11 +503,9 @@ class VaDE(nn.Module):
             print("#Epoch %3d: lr: %.5f, Train Loss: %.5f, Valid Loss: %.5f, acc: %.5f" % (
                 epoch, epoch_lr, train_loss / len(trainloader.dataset), valid_loss / len(validloader.dataset), acc[0]))
 
-            #if visualize and epoch % 50 == 0:
-            if visualize and epoch == (num_epochs - 1):
-                print('Plot current latent space.')
-                # TODO: this visualization uses predicted labels, the one after init uses true labels. Not comparable! Implement in torch!
-                self.visualize_state(Z, Y_pred, epoch=epoch)
+            if visualize and (epoch % 50 == 0 or epoch == num_epochs - 1):
+                print(f'Plot current latent space after {epoch} epochs.')
+                self.visualize_latent_space(Z, Y, epoch=epoch)
 
         return Y_pred
 

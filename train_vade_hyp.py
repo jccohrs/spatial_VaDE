@@ -82,6 +82,7 @@ def parse_log(path_to_log):
 def plot_stats(path, data):
     ''' plot training statistics '''
     averaging_width = 11
+    ylim_lower = -1300
     # plot train loss
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -89,7 +90,7 @@ def plot_stats(path, data):
     ax.plot(data['epoch'], data['train loss'], label='Raw')
     ax.plot(data['epoch'], pd.Series(data['train loss']).rolling(averaging_width).mean(),
             label=f'Smoothed (width {averaging_width})')
-    ax.set_ylim(bottom=-1200, top=0)
+    ax.set_ylim(bottom=ylim_lower, top=0)
     ax.set(xlabel='Epoch', ylabel='Train loss')
     ax.legend()
     fig.savefig(f'{path}-train-loss.png')
@@ -101,7 +102,7 @@ def plot_stats(path, data):
     ax.plot(data['epoch'], data['valid loss'], label='Raw')
     ax.plot(data['epoch'], pd.Series(data['valid loss']).rolling(averaging_width).mean(),
             label=f'Smoothed (width {averaging_width})')
-    ax.set_ylim(bottom=-1200, top=0)
+    ax.set_ylim(bottom=ylim_lower, top=0)
     ax.set(xlabel='Epoch', ylabel='Validation loss')
     ax.legend()
     fig.savefig(f'{path}-valid-loss.png')
@@ -194,7 +195,7 @@ def hyper_opt(args):
         vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
                 encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500],
                 one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
-                directory=args['final_directory'], ignore_label=args['ignore_label_inside'])
+                directory=exp_dir, ignore_label=args['ignore_label_inside'])
         print('Initialized VaDE model.')
         vade.to(args['device'])
         print(f'Pushed model to {args["device"]}.')
@@ -213,7 +214,7 @@ def hyper_opt(args):
 
         print('Fit the model...')
         y_pred = vade.fit(dataloader, validloader, lr=args['lr'], num_epochs=args['epochs'],
-                          anneal=False, visualize=False)
+                          anneal=False, visualize=args['visualize'])
 
         print('Save found parameters...')
         if args['save']:
@@ -286,7 +287,7 @@ def main():
     lam_lower = 0
     lam_upper = 0.025
     # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
-    args['regularizer'] = 0.01
+    args['regularizer'] = 0.1
 
     #------------------------------------------------------------------------------#
     # seed the randomness
@@ -301,12 +302,13 @@ def main():
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    args['image_file'] = 'IndianPines'
+    args['image_file'] = 'SalinasA'
 
     #------------------------------------------------------------------------------#
     # Specify the features
     #------------------------------------------------------------------------------#
-    args['n_cl'] = 16 #6 #7
+    args['n_cl'] = 6 #6 #7
+    args['visualize'] = False
     args['mnf_features'] = 16 #6
     args['latent_dim'] = 10
     args['ignore_label_inside'] = 0
@@ -358,13 +360,13 @@ def main():
     # adding spatial value of pixel
     #------------------------------------------------------------------------------#
     if args['spatial_coord']:
-        dummy_x=(np.arange(im.shape[0])/(im.shape[0]-1)).reshape((im.shape[0],1))
-        dummy_y=(np.arange(im.shape[1])/(im.shape[1]-1))
-        dummy_zero=np.zeros((im.shape[0],im.shape[1]))
+        dummy_x = (np.arange(im.shape[0]) / (im.shape[0] - 1)).reshape((im.shape[0], 1))
+        dummy_y = (np.arange(im.shape[1]) / (im.shape[1] - 1))
+        dummy_zero = np.zeros((im.shape[0], im.shape[1]))
         norm_x_cor = dummy_zero + dummy_x
         norm_y_cor = dummy_zero + dummy_y
-        im=np.dstack((im,norm_x_cor))
-        im=np.dstack((im,norm_y_cor))
+        im=np.dstack((im, norm_x_cor))
+        im=np.dstack((im, norm_y_cor))
 
     args['im'] = im
     args['gt'] = gt
@@ -433,31 +435,40 @@ def main():
         f.write(str(best))
 
     df = []
-    for it in range(max_evals):
-        df_dict = {}
-        df_dict["loss"]= -trials.results[it]['loss']
-        for key, value in trials.vals.items():
-            df_dict[key] = value[it]
+    if type(args['regularizer']) is not type(hp.uniform('dummy', 0, 1)):
+        # handle case when lambda is set to a fixed value
+        df_dict = {'regularizer': args['regularizer']}
+        df_dict['loss']= -trials.results[0]['loss']
         df.append(df_dict)
-
-    # TODO: Fix problem with the case when a fixed lambda is given. In that case only loss and not lambda are stored in df.
+    else:
+        for it in range(max_evals):
+            df_dict = {}
+            for key, value in trials.vals.items():
+                df_dict[key] = value[it]
+            df_dict['loss']= -trials.results[it]['loss']
+            df.append(df_dict)
 
     df = pd.DataFrame(df)
 
     # append results of hyperopt run to csv file
     output_hyperopt = f'{final_directory}/hyp_{args["image_file"]}.txt'
-    df.to_csv(output_hyperopt, sep=" ", index=False, mode='a', header=False)
+    if os.path.exists(output_hyperopt):
+        # if file already exists, append to it
+        df.to_csv(output_hyperopt, sep=" ", index=False, mode='a', header=False)
+    else:
+        # it file does not exist, create a new one
+        df.to_csv(output_hyperopt, sep=" ", index=False, mode='w', header=True)
 
     # read the full hyperopt results file and update the plot
     df = pd.read_csv(output_hyperopt, sep=' ', header=0)
     fig, ax = plt.subplots(len(df.columns) - 1)
-    for i in range(1, len(df.columns)):
+    for i in range(len(df.columns) - 1):
         if len(df.columns) - 1 == 1:
             ax.scatter(df[df.columns[i]], df['loss'])
             ax.set(xlabel=df.columns[i], ylabel='OA')
         else:
-            ax[i - 1].scatter(df[df.columns[i]], df['loss'])
-            ax[i - 1].set(xlabel=df.columns[i], ylabel='OA')
+            ax[i].scatter(df[df.columns[i]], df['loss'])
+            ax[i].set(xlabel=df.columns[i], ylabel='OA')
 
     fig.savefig(f'{final_directory}/lambda_vs_OA.png')
 
