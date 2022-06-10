@@ -308,7 +308,7 @@ def main():
     # Specify the features
     #------------------------------------------------------------------------------#
     args['n_cl'] = 6 #6 #7
-    args['visualize'] = True
+    args['visualize'] = False
     args['mnf_features'] = 16 #6
     args['latent_dim'] = 10
     args['ignore_label_inside'] = 0
@@ -360,13 +360,13 @@ def main():
     # adding spatial value of pixel
     #------------------------------------------------------------------------------#
     if args['spatial_coord']:
-        dummy_x=(np.arange(im.shape[0])/(im.shape[0]-1)).reshape((im.shape[0],1))
-        dummy_y=(np.arange(im.shape[1])/(im.shape[1]-1))
-        dummy_zero=np.zeros((im.shape[0],im.shape[1]))
+        dummy_x = (np.arange(im.shape[0]) / (im.shape[0] - 1)).reshape((im.shape[0], 1))
+        dummy_y = (np.arange(im.shape[1]) / (im.shape[1] - 1))
+        dummy_zero = np.zeros((im.shape[0], im.shape[1]))
         norm_x_cor = dummy_zero + dummy_x
         norm_y_cor = dummy_zero + dummy_y
-        im=np.dstack((im,norm_x_cor))
-        im=np.dstack((im,norm_y_cor))
+        im=np.dstack((im, norm_x_cor))
+        im=np.dstack((im, norm_y_cor))
 
     args['im'] = im
     args['gt'] = gt
