@@ -448,8 +448,6 @@ def main():
             df_dict['loss']= -trials.results[it]['loss']
             df.append(df_dict)
 
-    # TODO: Fix problem with the case when a fixed lambda is given. In that case only loss and not lambda are stored in df.
-
     df = pd.DataFrame(df)
 
     # append results of hyperopt run to csv file
