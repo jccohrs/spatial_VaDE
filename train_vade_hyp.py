@@ -193,7 +193,7 @@ def hyper_opt(args):
         # init model
         #------------------------------------------------------------------------------------#
         vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
-                encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500],
+                encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=im.shape[:-1],
                 one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
                 directory=exp_dir, ignore_label=args['ignore_label_inside'])
         print('Initialized VaDE model.')
@@ -287,7 +287,7 @@ def main():
     lam_lower = 0
     lam_upper = 0.025
     # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
-    args['regularizer'] = 0.0005
+    args['regularizer'] = 0.0025
 
     #------------------------------------------------------------------------------#
     # seed the randomness
@@ -302,7 +302,7 @@ def main():
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    args['image_file'] = 'Salinas'
+    args['image_file'] = 'IndianPines'
 
     #------------------------------------------------------------------------------#
     # Specify the features
