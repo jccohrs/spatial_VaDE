@@ -287,7 +287,7 @@ def main():
     lam_lower = 0
     lam_upper = 0.025
     # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
-    args['regularizer'] = 0.1
+    args['regularizer'] = 0.0005
 
     #------------------------------------------------------------------------------#
     # seed the randomness
@@ -302,13 +302,13 @@ def main():
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    args['image_file'] = 'SalinasA'
+    args['image_file'] = 'Salinas'
 
     #------------------------------------------------------------------------------#
     # Specify the features
     #------------------------------------------------------------------------------#
-    args['n_cl'] = 6 #6 #7
-    args['visualize'] = True
+    args['n_cl'] = 16
+    args['visualize'] = False
     args['mnf_features'] = 16 #6
     args['latent_dim'] = 10
     args['ignore_label_inside'] = 0
