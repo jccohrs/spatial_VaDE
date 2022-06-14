@@ -181,6 +181,9 @@ def hyper_opt(args):
         dataloader = args['dataloader']
         validloader = args['validloader']
         
+        if args['spatial_coord']:
+            print(f'Added spatial coordinates to spectra.')
+
         # im and gt not involved in computation on GPU
         im = args['im']
         gt = args['gt']
