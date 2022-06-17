@@ -26,7 +26,6 @@ from msiplib.io.segmentation import (save_gt_colored_segmentation,
 from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
 
-
 def parse_args():
     ''' function to parse arguments '''
     parser = argparse.ArgumentParser(description='VaDE: Variational Deep Embedding')
@@ -176,6 +175,7 @@ def hyper_opt(args):
 
     logfile_path = f'{exp_dir}/output-{exp_spec_path}.log'
     with Tee(logfile_path):
+        print(f'Running training on {os.uname()[1]}')
         print(f'Working on image {args["image_file"]}...')
         print(f'Device: {args["device"]}')
         dataloader = args['dataloader']
@@ -187,6 +187,9 @@ def hyper_opt(args):
         # im and gt not involved in computation on GPU
         im = args['im']
         gt = args['gt']
+
+        if args['spatial_coord']:
+            print('Spatial coordinates concatenated.')
         #--------------------------------------------------------------------------------#
         #calculate the initial time
         #--------------------------------------------------------------------------------#
