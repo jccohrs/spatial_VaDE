@@ -13,6 +13,7 @@ from sklearn.manifold import TSNE
 # from tsnecuda import TSNE
 from sklearn.mixture import GaussianMixture
 
+from msiplib.io import saveArrayAsNetCDF
 from msiplib.segmentation import create_segmentation_colormap
 
 def cluster_acc(Y_pred, Y, ignore_label=None):
@@ -93,13 +94,14 @@ def log_likelihood_samplesImean_sigma(samples, mu, logvar):
 class VaDE(nn.Module):
     def __init__(self, input_dim=784, z_dim=10, n_centroids=10,
         encodeLayer=[500, 500,2000], decodeLayer=[2000, 500, 500],
-        one_by_delta_x=86, regularization=0.01,
+        im_shape=(145, 145), one_by_delta_x=100, regularization=0.01,
         directory='Without_batch_normal', ignore_label=None):
         super(VaDE, self).__init__()
         self.z_dim = z_dim
         self.n_centroids = n_centroids
-        self.one_by_delta_x=one_by_delta_x
-        self.directory=directory
+        self.directory = directory
+        self.im_shape = im_shape
+        self.one_by_delta_x = one_by_delta_x
         self.use_cuda = torch.cuda.is_available()
 
         #--------------------------------------------------------------------------------#
@@ -469,6 +471,7 @@ class VaDE(nn.Module):
             Y = []
             Y_pred = []
             Z = []
+            Gamma = []
             for _, (inputs, labels) in enumerate(validloader):
                 inputs = Variable(inputs)
 
@@ -488,17 +491,19 @@ class VaDE(nn.Module):
                 # compute gamma for whole evaluation batch
                 #--------------------------------------------------------------------------------#
                 gamma = self.get_gamma(z).detach()
+                Gamma.append(gamma.cpu().numpy())
 
                 #--------------------------------------------------------------------------------#
                 # compute predicted labels by taking the argmax over gamma (q(c | z))
                 #--------------------------------------------------------------------------------#
-                # TODO: Can the ccomputations be made with torch on GPU?
+                # TODO: Can the computations be made with torch on GPU?
                 Y_pred.append(torch.argmax(gamma, dim=1).cpu().numpy())
                 Y.append(labels.cpu().numpy())
 
             Y = np.concatenate(Y)
             Y_pred = np.concatenate(Y_pred)
             Z = np.concatenate(Z)
+            Gamma = np.concatenate(Gamma)
             acc = cluster_acc(Y_pred, Y, self.ignore_label)
 
             print("#Epoch %3d: lr: %.5f, Train Loss: %.5f, Valid Loss: %.5f, acc: %.5f" % (
@@ -507,6 +512,10 @@ class VaDE(nn.Module):
             if visualize and (epoch % 50 == 0 or epoch == num_epochs - 1):
                 print(f'Plot current latent space after {epoch} epochs.')
                 self.visualize_latent_space(Z, Y, epoch=epoch)
+
+            if epoch == num_epochs - 1:
+                saveArrayAsNetCDF(Gamma.reshape((self.im_shape[0], self.im_shape[1], Gamma.shape[-1])),
+                                  f'{self.directory}/gamma_epoch{epoch}_reg{self.lambdas}.nc')
 
         return Y_pred
 
