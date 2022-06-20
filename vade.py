@@ -119,7 +119,7 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # add output layers of decoder
         #--------------------------------------------------------------------------------#
-        self._dec_mu = nn.Linear(decodeLayer[-1], input_dim)
+        self._dec_mu = nn.Linear(decodeLayer[-1], input_dim) # original implementation applies sigmoid for MNIST and relu otherwise afterwards.
         self._dec_log_sigma = nn.Linear(decodeLayer[-1], input_dim)
 
         #--------------------------------------------------------------------------------#
