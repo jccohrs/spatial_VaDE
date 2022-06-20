@@ -9,8 +9,8 @@ from torch import nn
 from torch import optim
 from torch.autograd import Variable
 from scipy.optimize import linear_sum_assignment as linear_assignment
-# from tsnecuda import TSNE
 from sklearn.manifold import TSNE
+# from tsnecuda import TSNE
 from sklearn.mixture import GaussianMixture
 
 from msiplib.io import saveArrayAsNetCDF
