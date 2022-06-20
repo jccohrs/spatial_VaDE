@@ -296,14 +296,26 @@ def main():
     args['regularizer'] = 0.0025
 
     #------------------------------------------------------------------------------#
-    # seed the randomness
+    # seed the randomness, reduce non-determinism
     #------------------------------------------------------------------------------#
     seed = 2021
     random.seed(seed)
     torch.manual_seed(seed)
     np.random.seed(seed)
     seed_hyp = seed
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    torch.use_deterministic_algorithms(True)
     max_evals = 1
+
+    # determinism for dataloader
+    def seed_worker(worker_id):
+        worker_seed = torch.initial_seed() % 2**32
+        numpy.random.seed(worker_seed)
+        random.seed(worker_seed)
+
+    g = torch.Generator()
+    g.manual_seed(seed)
 
     #------------------------------------------------------------------------------#
     # Read the input image file
@@ -429,7 +441,9 @@ def main():
     args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
     ds = HSIDataset(pxs, lbs, args['device'])
 
-    args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False)
+    # args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False)
+    args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False, worker_init_fn=seed_worker, generator=g)
+    # args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=0, pin_memory=False)
     args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=0, pin_memory=False)
     print('Initialized dataset and dataloader.')
 
