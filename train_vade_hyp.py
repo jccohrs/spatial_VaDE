@@ -46,6 +46,177 @@ def parse_args():
     return vars(args)
 
 
+def classify(output_path, image, weights, gt, add_spatial=False):
+    ''' classify an image using a trained VaDE model '''
+
+    im = normalize_image(image)
+    args = {'spatial_coord': add_spatial}
+    args['use_mnf'] = False
+    args['use_pca'] = False
+
+    args = prepare_data(im, gt, args, None)
+
+    # init model
+    vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
+                encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=im.shape[:-1],
+                one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
+                directory=output_path, ignore_label=args['ignore_label_inside'])
+
+    print('Initialized VaDE model.')
+    vade.to(args['device'])
+    print(f'Pushed model to {args["device"]}.')
+
+    #------------------------------------------------------------------------------------#
+    # load pretrained weights
+    #------------------------------------------------------------------------------------#
+
+    print(f"Load model from {weights}...")
+    vade.load_model(weights)
+    print('Loaded pretrained network weights.')
+
+    print('Use model to classify the data...')
+    _, y_pred, Gamma = vade.predict(args['validloader'])
+
+    saveArrayAsNetCDF(Gamma.reshape((args['im'].shape[0], args['im'].shape[1], Gamma.shape[-1])),
+                      f'{output_path}/gamma.nc')
+    seg = y_pred.reshape((args['im'].shape[:-1]))
+
+    print(f'Segmentation scores: {segmentation_scores(seg, args["gt"], args["ignore_label_inside"])}')
+
+    save_segmentation(output_path, f'prediction_spat{int(args["spatial_coord"])}', seg, args)
+
+
+def prepare_data(im, gt, args, seed_worker):
+    #------------------------------------------------------------------------------#
+    # apply MNF for denoising
+    #------------------------------------------------------------------------------#
+    if args['use_mnf']:
+        print('Denoise data with MNF...')
+        sig = calc_stats(im)
+        noise_dir = 'lowerright'
+        noise = noise_from_diffs(im, direction=noise_dir)
+        mnfr = mnf(sig, noise)
+        im = mnfr.reduce(im, num=args['mnf_features'])
+        args['im'] = normalize_image(im)
+        print('Finished denoising of data with MNF.')
+    #------------------------------------------------------------------------------#
+    # principal component analysis
+    #------------------------------------------------------------------------------#
+    if args['use_pca']:
+        print('Data with PCA ...')
+        data_flat = im.reshape(im.shape[0]*im.shape[1],-1)
+        pca = PCA(n_components=0.9999)
+        data_pca = pca.fit_transform(data_flat)
+        im = data_pca.reshape(im.shape[0],im.shape[1],data_pca.shape[1])
+        print('Finished dimenionality reduction of data with PCA')
+    #------------------------------------------------------------------------------#
+    # adding spatial value of pixel
+    #------------------------------------------------------------------------------#
+    if args['spatial_coord']:
+        dummy_x = (np.arange(im.shape[0]) / (im.shape[0] - 1)).reshape((im.shape[0], 1))
+        dummy_y = (np.arange(im.shape[1]) / (im.shape[1] - 1))
+        dummy_zero = np.zeros((im.shape[0], im.shape[1]))
+        norm_x_cor = dummy_zero + dummy_x
+        norm_y_cor = dummy_zero + dummy_y
+        im = np.dstack((im, norm_x_cor))
+        im = np.dstack((im, norm_y_cor))
+
+    args['im'] = im
+    args['gt'] = gt
+    args['data_dim'] = im.shape[-1]
+    args['fd_inv_stepsize'] = max(im.shape[1],im.shape[0])
+
+    #-----------------------------------------------------------------------------#
+    # add the right and bottom part of the image to create a new data strucutre
+    # so that we can use the variational method
+
+    #comment out the line with # for getting zero padding on right and bottom
+    #-----------------------------------------------------------------------------#
+    im_with_right_and_below = np.zeros((im.shape[0] * im.shape[1], 3 * im.shape[2]))
+    for i in range(im.shape[0]):
+        for j in range(im.shape[1]):
+            if (j < (im.shape[1] - 1)) and (i < (im.shape[0] - 1)):
+                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j + 1, :]
+                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i + 1, j, :]
+            elif (j == (im.shape[1] - 1)) and (i < (im.shape[0] - 1)):
+                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j, :] #
+                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i + 1, j, :]
+            elif (j < (im.shape[1] - 1)) and (i == (im.shape[0] - 1)):
+                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j + 1, :]
+                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i, j, :] #
+            else:
+                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j, :] #
+                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i, j, :] #
+
+    #--------------------------------------------------------------------------------#
+    # remove pixels with ignore label
+    #--------------------------------------------------------------------------------#
+    if args['ignore_label'] is None:
+        #pxs = im.reshape((-1, im.shape[-1]))
+        pxs = im_with_right_and_below
+        lbs = np.ravel(gt)
+    else:
+        #pxs = im[gt != args['ignore_label']]
+        #lbs = gt[gt != args['ignore_label']]
+        pxs = im_with_right_and_below
+        lbs = np.ravel(gt)
+        index = lbs!= args['ignore_label']
+        lbs = lbs[index]
+        pxs = pxs[index]
+    #----------------------------------------------------------------------------------#
+    # to avoid problems with segment numbering, rebuild it if ground truth is given
+    #----------------------------------------------------------------------------------#
+    if lbs is not None:
+        lbs = rebuild_segment_numbering(lbs)
+
+    ds = HSIDataset(pxs, lbs, args['device'])
+
+    # args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False)
+    args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False, worker_init_fn=seed_worker, generator=g)
+    # args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=0, pin_memory=False)
+    args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=0, pin_memory=False)
+    print('Initialized dataset and dataloader.')
+
+    return args
+
+def save_segmentation(exp_dir, exp_spec_path, seg, args):
+    print(f'Labels in segmentation: {np.unique(seg)}')
+    print(f'Number of labels in seg: {len(np.unique(seg))}')
+
+    if args['ignore_label'] is None:
+        if args['use_mnf']:
+            filename = f'seg-{exp_spec_path}_mnf_all_pxs'
+        else:
+            filename = f'seg-{exp_spec_path}_all_pxs'
+        # save full segmentation
+        save_gt_colored_segmentation(f'{exp_dir}/{filename}_full.png', seg, args['gt_file'],
+                                     args['ignore_label_inside'], True, None, False, False)
+        # save masked segmentation
+        save_gt_colored_segmentation(f'{exp_dir}/{filename}_masked.png', seg, args['gt_file'],
+                                     args['ignore_label_inside'], False, None, False, True)
+        # save wrongly and correctly classified pixels
+        visualize_correct_wrong_pixels(f'{exp_dir}/{filename}.png', seg, args['gt'], args['gt_file'],
+                                       args['ignore_label_inside'])
+        # store found segmentation as netCDF file
+        saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
+    else:
+        # TODO: code ignoring pixels in computations outdated!
+        # if args['use_mnf']:
+        #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}\\
+        # _reg{args["regularizer"]}_mnf_ignore_pxs'
+        # else:
+        #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}\\
+        # _reg{args["regularizer"]}_ignore_pxs'
+        # seg[gt != ignore_label] = y_pred + 1
+        # saveColoredSegmentation(seg, f'"final_directory"/{filename}.png', None, args['ignore_label_inside'],
+        #                         True, gt)
+        saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
+
+
 def parse_log(path_to_log):
     """Parse log file
     """
@@ -229,39 +400,8 @@ def hyper_opt(args):
             vade.save_model(save_location)
 
         print('Save found segmentation...')
-
-        seg = y_pred.reshape(im.shape[:-1]).astype(np.uint8)
-        print(f'Labels in segmentation: {np.unique(seg)}')
-        print(f'Number of labels in seg: {len(np.unique(seg))}')
-
-        if args['ignore_label'] is None:
-            if args['use_mnf']:
-                filename = f'seg-{exp_spec_path}_mnf_all_pxs'
-            else:
-                filename = f'seg-{exp_spec_path}_all_pxs'
-            # save full segmentation
-            save_gt_colored_segmentation(f'{exp_dir}/{filename}_full.png', seg, args['gt_file'],
-                                         args['ignore_label_inside'], True, None, False, False)
-            # save masked segmentation
-            save_gt_colored_segmentation(f'{exp_dir}/{filename}_masked.png', seg, args['gt_file'],
-                                         args['ignore_label_inside'], False, None, False, True)
-            # save wrongly and correctly classified pixels
-            visualize_correct_wrong_pixels(f'{exp_dir}/{filename}.png', seg, gt, args['gt_file'],
-                                           args['ignore_label_inside'])
-            # store found segmentation as netCDF file
-            saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
-        else:
-            # TODO: code ignoring pixels in computations outdated!
-            # if args['use_mnf']:
-            #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}\\
-            # _reg{args["regularizer"]}_mnf_ignore_pxs'
-            # else:
-            #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}\\
-            # _reg{args["regularizer"]}_ignore_pxs'
-            # seg[gt != ignore_label] = y_pred + 1
-            # saveColoredSegmentation(seg, f'"final_directory"/{filename}.png', None, args['ignore_label_inside'],
-            #                         True, gt)
-            saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
+        seg = y_pred.reshape(args['im'].shape[:-1]).astype(np.uint8)
+        save_segmentation(exp_dir, exp_spec_path, seg, args)
 
         #---------------------------------------------------------------------------------------#
         # evaluate segmentation
@@ -310,8 +450,12 @@ def main():
 
     # determinism for dataloader
     def seed_worker(worker_id):
+        # torch.initial_seed() returns the initial seed for generating random numbers.
+        # if torch.manual_seed(val) is used before, torch.initial_seed() returns val.
         worker_seed = torch.initial_seed() % 2**32
-        numpy.random.seed(worker_seed)
+        
+        # seed of random and numpy already set above
+        np.random.seed(worker_seed)
         random.seed(worker_seed)
 
     g = torch.Generator()
@@ -334,6 +478,8 @@ def main():
     args['use_mnf'] = False
     args['use_pca'] = False
     args['spatial_coord'] = True
+    args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     #--------------------------------------------------------------------------------#
     # check and create a folder to store all the data and figure
     #--------------------------------------------------------------------------------#
@@ -351,102 +497,10 @@ def main():
     data_path = f'$DATA_DIR/segmentation/{args["image_file"]}/{args["image_file"]}.nc'
     im, gt, _, args['gt_file'] = read_data(os.path.expandvars(data_path))
 
+    # prepare dataset and dataloader for training and validation
+    args = prepare_data(im, gt, args, seed_worker)
 
-    #------------------------------------------------------------------------------#
-    # apply MNF for denoising
-    #------------------------------------------------------------------------------#
-    if args['use_mnf']:
-        print('Denoise data with MNF...')
-        sig = calc_stats(im)
-        noise_dir = 'lowerright'
-        noise = noise_from_diffs(im, direction=noise_dir)
-        mnfr = mnf(sig, noise)
-        im = mnfr.reduce(im, num=args['mnf_features'])
-        args['im'] = normalize_image(im)
-        print('Finished denoising of data with MNF.')
-    #------------------------------------------------------------------------------#
-    # principal component analysis
-    #------------------------------------------------------------------------------#
-    if args['use_pca']:
-        print('Data with PCA ...')
-        data_flat = im.reshape(im.shape[0]*im.shape[1],-1)
-        pca = PCA(n_components=0.9999)
-        data_pca = pca.fit_transform(data_flat)
-        im = data_pca.reshape(im.shape[0],im.shape[1],data_pca.shape[1])
-        print('Finished dimenionality reduction of data with PCA')
-    #------------------------------------------------------------------------------#
-    # adding spatial value of pixel
-    #------------------------------------------------------------------------------#
-    if args['spatial_coord']:
-        dummy_x = (np.arange(im.shape[0]) / (im.shape[0] - 1)).reshape((im.shape[0], 1))
-        dummy_y = (np.arange(im.shape[1]) / (im.shape[1] - 1))
-        dummy_zero = np.zeros((im.shape[0], im.shape[1]))
-        norm_x_cor = dummy_zero + dummy_x
-        norm_y_cor = dummy_zero + dummy_y
-        im=np.dstack((im, norm_x_cor))
-        im=np.dstack((im, norm_y_cor))
-
-    args['im'] = im
-    args['gt'] = gt
-    args['data_dim'] = im.shape[-1]
-    args['fd_inv_stepsize'] = max(im.shape[1],im.shape[0])
-    #-----------------------------------------------------------------------------#
-    # add the right and bottom part of the image to create a new data strucutre
-    # so that we can use the variational method
-
-    #comment out the line with # for getting zero padding on right and bottom
-    #-----------------------------------------------------------------------------#
-    im_with_right_and_below = np.zeros((im.shape[0] * im.shape[1], 3 * im.shape[2]))
-    for i in range(im.shape[0]):
-        for j in range(im.shape[1]):
-            if (j < (im.shape[1] - 1)) and (i < (im.shape[0] - 1)):
-                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
-                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j + 1, :]
-                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i + 1, j, :]
-            elif (j == (im.shape[1] - 1)) and (i < (im.shape[0] - 1)):
-                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
-                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j, :] #
-                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i + 1, j, :]
-            elif (j < (im.shape[1] - 1)) and (i == (im.shape[0] - 1)):
-                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
-                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j + 1, :]
-                im_with_right_and_below[i * im.shape[1] + j, 2*im.shape[2]:3 * im.shape[2]] = im[i, j, :] #
-            else:
-                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
-                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j, :] #
-                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i, j, :] #
-
-    #--------------------------------------------------------------------------------#
-    # remove pixels with ignore label
-    #--------------------------------------------------------------------------------#
-
-    if args['ignore_label'] is None:
-        #pxs = im.reshape((-1, im.shape[-1]))
-        pxs = im_with_right_and_below
-        lbs = np.ravel(gt)
-    else:
-        #pxs = im[gt != args['ignore_label']]
-        #lbs = gt[gt != args['ignore_label']]
-        pxs = im_with_right_and_below
-        lbs = np.ravel(gt)
-        index = lbs!= args['ignore_label']
-        lbs = lbs[index]
-        pxs = pxs[index]
-    #----------------------------------------------------------------------------------#
-    # to avoid problems with segment numbering, rebuild it if ground truth is given
-    #----------------------------------------------------------------------------------#
-    if lbs is not None:
-        lbs = rebuild_segment_numbering(lbs)
-
-    args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
-    ds = HSIDataset(pxs, lbs, args['device'])
-
-    # args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False)
-    args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False, worker_init_fn=seed_worker, generator=g)
-    # args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=0, pin_memory=False)
-    args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=0, pin_memory=False)
-    print('Initialized dataset and dataloader.')
-
+    # run hyperopt to do hyperparameter tuning
     trials=Trials()
     best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
                 rstate=np.random.default_rng(seed_hyp), trials=trials)
