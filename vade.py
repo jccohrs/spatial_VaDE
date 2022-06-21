@@ -168,8 +168,6 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         self.eval()
         data = []
-        data_right =[]
-        data_bottom =[]
 
         #--------------------------------------------------------------------------------#
         # take samples and map them to the latent space to fit the GMM there
@@ -228,13 +226,8 @@ class VaDE(nn.Module):
         gamma = p_c_z / torch.sum(p_c_z, dim=1, keepdim=True)
         return gamma
 
-    def loss_function(self, inputs, mu_x, logvar_x, z, z_mean, z_log_var,z_right,z_bottom):
+    def loss_function(self, inputs, mu_x, logvar_x, z, z_mean, z_log_var, z_right, z_bottom):
         # TODO: revisit function and remove unnecessary parts
-        Z=z.unsqueeze(2)
-
-        Z_right=z_right.unsqueeze(2)
-        Z_bottom=z_bottom.unsqueeze(2)
-
         z_mean_t = z_mean.unsqueeze(2)
         z_log_var_t = z_log_var.unsqueeze(2)
         gamma = self.get_gamma(z)
@@ -346,39 +339,46 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # apply model with current weights to a dataset
         #--------------------------------------------------------------------------------#
-        # TODO: need to be revisited: Not applying regularizer and not checked for gpu/cpu usage!
         self.eval()
         valid_loss = 0.0
         Y_pred = []
         Y = []
         Z = []
+        Gamma = []
         for _, (inputs, labels) in enumerate(dataloader):
             inputs = Variable(inputs)
-            z, mu, logvar, mu_x, logvar_x = self.forward(inputs)
+            data_dim = int(inputs.shape[1] / 3)
+            z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
+            z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
+            z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
 
             Z.append(z.detach().cpu().numpy())
 
-            loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar)
+            loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
+
             valid_loss += loss.data.item() * len(inputs)
 
             #--------------------------------------------------------------------------------#
             # compute gamma for whole evaluation batch
             #--------------------------------------------------------------------------------#
-            gamma = self.get_gamma(z).data.cpu().numpy()
-            Y.append(labels.numpy())
+            gamma = self.get_gamma(z).detach()
+            Gamma.append(gamma.cpu().numpy())
 
             #--------------------------------------------------------------------------------#
             # compute predicted labels by taking the argmax over gamma (q(c | z))
             #--------------------------------------------------------------------------------#
-            Y_pred.append(np.argmax(gamma, axis=1))
+            Y.append(labels.cpu().numpy())
+            Y_pred.append(torch.argmax(gamma, dim=1).cpu().numpy())
 
         Y_pred = np.concatenate(Y_pred)
         Y = np.concatenate(Y)
         Z = np.concatenate(Z)
-        acc = cluster_acc(Y_pred, Y,self.ignore_label)
-        print('Accuracy: {}'.format(acc[0]))
+        Gamma = np.concatenate(Gamma)
 
-        return Z, Y_pred
+        acc = cluster_acc(Y_pred, Y, self.ignore_label)
+        print('Overall accuracy: {}'.format(acc[0]))
+
+        return Z, Y_pred, Gamma
 
 
     def fit(self, trainloader, validloader, lr=0.002, num_epochs=10,
