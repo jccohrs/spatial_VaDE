@@ -445,7 +445,7 @@ def main():
     lam_lower = 0
     lam_upper = 0.025
     # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
-    args['regularizer'] = 0.0025
+    args['regularizer'] = 0
 
     #------------------------------------------------------------------------------#
     # seed the randomness, reduce non-determinism
@@ -457,6 +457,7 @@ def main():
     seed_hyp = seed
     g = torch.Generator()
     g.manual_seed(seed)
+    os.environ["CUBLAS_WORKSPACE_CONFIG"]=":4096:8"
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     torch.use_deterministic_algorithms(True)
@@ -488,7 +489,7 @@ def main():
     args['ignore_label'] = None
     args['use_mnf'] = False
     args['use_pca'] = False
-    args['spatial_coord'] = True
+    args['spatial_coord'] = False
     args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     #--------------------------------------------------------------------------------#
