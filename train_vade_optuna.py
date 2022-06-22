@@ -2,6 +2,7 @@
 ''' script to train vade with hyperopt '''
 
 import argparse
+from builtins import breakpoint
 import os
 import random
 import re
@@ -24,7 +25,7 @@ from vade import VaDE
 from msiplib.image.manipulators import normalize_image
 from msiplib.io import saveArrayAsNetCDF, Tee
 from msiplib.io.segmentation import (save_gt_colored_segmentation,
-                                     visualize_correct_wrong_pixels)
+                                    visualize_correct_wrong_pixels)
 from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
 
@@ -36,7 +37,7 @@ def parse_args():
                         help='learning rate for training (default: 0.0001)')
     parser.add_argument('--batch-size', type=int, default=100, metavar='N',
                         help='input batch size for training (default: 100)')
-    parser.add_argument('--epochs', type=int, default=500, metavar='N',
+    parser.add_argument('--epochs', type=int, default=1, metavar='N',
                         help='number of epochs to train (default: 500)')
     parser.add_argument('--pretrain', type=str, default="", metavar='N',
                         help='path to pretrained model')
@@ -450,13 +451,14 @@ def main():
 
     # TODO: Fix problem with the case when a fixed lambda is given. In that case only loss and not lambda are stored in df.
 
-
+    breakpoint()
     # append results of hyperopt run to csv file
     output_optuna = f'{final_directory}/hyp_{args["image_file"]}.txt'
     df.to_csv(output_optuna, sep=" ", index=False, mode='a', header=False)
 
     # read the full hyperopt results file and update the plot
     df = pd.read_csv(output_optuna, sep=' ', header=0)
+    breakpoint()
     fig, ax = plt.subplots(len(df.columns) - 1)
     for i in range(1, len(df.columns)):
         if len(df.columns) - 1 == 1:
