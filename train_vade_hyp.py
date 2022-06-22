@@ -46,15 +46,23 @@ def parse_args():
     return vars(args)
 
 
-def classify(output_path, image, weights, gt, add_spatial=False):
+def classify(output_path, image, weights, gt, n_cl, gt_file, ignore_label=None, add_spatial=False):
     ''' classify an image using a trained VaDE model '''
 
     im = normalize_image(image)
     args = {'spatial_coord': add_spatial}
     args['use_mnf'] = False
     args['use_pca'] = False
+    args['ignore_label_inside'] = ignore_label
+    args['ignore_label'] = None
+    args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
+    args['batch_size'] = 100
+    args['latent_dim'] = 10
+    args['n_cl'] = n_cl
+    args['regularizer'] = 0.002
+    args['gt_file'] = gt_file
 
-    args = prepare_data(im, gt, args, None)
+    args = prepare_data(im, gt, args, None, None)
 
     # init model
     vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
@@ -75,18 +83,21 @@ def classify(output_path, image, weights, gt, add_spatial=False):
     print('Loaded pretrained network weights.')
 
     print('Use model to classify the data...')
-    _, y_pred, Gamma = vade.predict(args['validloader'])
+    loss, _, y_pred, gamma = vade.predict(args['validloader'])
 
-    saveArrayAsNetCDF(Gamma.reshape((args['im'].shape[0], args['im'].shape[1], Gamma.shape[-1])),
+    saveArrayAsNetCDF(gamma.reshape((args['im'].shape[0], args['im'].shape[1], gamma.shape[-1])),
                       f'{output_path}/gamma.nc')
     seg = y_pred.reshape((args['im'].shape[:-1]))
 
+    print(f'Validation loss: {loss / len(args["validloader"])}')
     print(f'Segmentation scores: {segmentation_scores(seg, args["gt"], args["ignore_label_inside"])}')
 
     save_segmentation(output_path, f'prediction_spat{int(args["spatial_coord"])}', seg, args)
 
 
-def prepare_data(im, gt, args, seed_worker):
+def prepare_data(im, gt, args, seed_worker, generator):
+    ''' function that prepares the data and dataloader for the training of VaDE '''
+
     #------------------------------------------------------------------------------#
     # apply MNF for denoising
     #------------------------------------------------------------------------------#
@@ -176,7 +187,8 @@ def prepare_data(im, gt, args, seed_worker):
     ds = HSIDataset(pxs, lbs, args['device'])
 
     # args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False)
-    args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False, worker_init_fn=seed_worker, generator=g)
+    args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False,
+                                    worker_init_fn=seed_worker, generator=generator)
     # args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=0, pin_memory=False)
     args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=0, pin_memory=False)
     print('Initialized dataset and dataloader.')
@@ -443,6 +455,8 @@ def main():
     torch.manual_seed(seed)
     np.random.seed(seed)
     seed_hyp = seed
+    g = torch.Generator()
+    g.manual_seed(seed)
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     torch.use_deterministic_algorithms(True)
@@ -453,13 +467,10 @@ def main():
         # torch.initial_seed() returns the initial seed for generating random numbers.
         # if torch.manual_seed(val) is used before, torch.initial_seed() returns val.
         worker_seed = torch.initial_seed() % 2**32
-        
+
         # seed of random and numpy already set above
         np.random.seed(worker_seed)
         random.seed(worker_seed)
-
-    g = torch.Generator()
-    g.manual_seed(seed)
 
     #------------------------------------------------------------------------------#
     # Read the input image file
@@ -498,7 +509,7 @@ def main():
     im, gt, _, args['gt_file'] = read_data(os.path.expandvars(data_path))
 
     # prepare dataset and dataloader for training and validation
-    args = prepare_data(im, gt, args, seed_worker)
+    args = prepare_data(im, gt, args, seed_worker, g)
 
     # run hyperopt to do hyperparameter tuning
     trials=Trials()

@@ -378,7 +378,7 @@ class VaDE(nn.Module):
         acc = cluster_acc(Y_pred, Y, self.ignore_label)
         print('Overall accuracy: {}'.format(acc[0]))
 
-        return Z, Y_pred, Gamma
+        return valid_loss, Z, Y_pred, Gamma
 
 
     def fit(self, trainloader, validloader, lr=0.002, num_epochs=10,
