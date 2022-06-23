@@ -1,5 +1,5 @@
 # coding: utf-8
-from train_vade_tv_hyp import classify
+from train_vade_hyp import classify
 from netCDF4 import Dataset
 from msiplib.io import read_image
 im = read_image('/Users/jan/sciebo/data/segmentation/IndianPines/IndianPines.nc')

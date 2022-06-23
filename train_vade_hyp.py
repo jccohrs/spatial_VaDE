@@ -17,8 +17,7 @@ from netCDF4 import Dataset as ncDataset
 from sklearn.decomposition import PCA
 from spectral import calc_stats, mnf, noise_from_diffs
 from torch.utils.data import DataLoader, Dataset
-from torchvision.transforms.functional import pad
-from vade_tv import VaDE
+from vade import VaDE
 
 from msiplib.image.manipulators import normalize_image
 from msiplib.io import saveArrayAsNetCDF, Tee
@@ -98,12 +97,6 @@ def classify(output_path, image, weights, gt, n_cl, gt_file, ignore_label=None, 
 
 def prepare_data(im, gt, args, seed_worker, generator):
     ''' function that prepares the data and dataloader for the training of VaDE '''
-
-    # if training on patches, pad image and extend pixels by their suroundings
-    if args['patches']:
-        im_tensor = torch.permute(torch.from_numpy(im), (2, 0, 1))
-        im_tensor_pad = pad(im_tensor, padding=args['patch_size'] // 2, fill=0, padding_mode='reflect')
-        im = torch.permute(im_tensor_pad, (1, 2, 0)).numpy()
 
     #------------------------------------------------------------------------------#
     # apply MNF for denoising
@@ -342,7 +335,7 @@ def read_data(filename):
 
 class HSIDataset(Dataset):
     ''' define HSI dataset '''
-    def __init__(self, pts, labels, patch_size=None, device='cuda'):
+    def __init__(self, pts, labels, device='cuda'):
         self.data = torch.from_numpy(pts).float().to(device)
         self.labels = torch.from_numpy(labels).int().to(device)
 
@@ -373,14 +366,13 @@ def hyper_opt(args):
         
         if args['spatial_coord']:
             print(f'Added spatial coordinates to spectra.')
-        
-        if args['patches']:
-            print(f'Input patches of size {args["patch_size"]}.')
 
         # im and gt not involved in computation on GPU
         im = args['im']
         gt = args['gt']
 
+        if args['spatial_coord']:
+            print('Spatial coordinates concatenated.')
         #--------------------------------------------------------------------------------#
         #calculate the initial time
         #--------------------------------------------------------------------------------#
@@ -495,8 +487,6 @@ def main():
     args['latent_dim'] = 10
     args['ignore_label_inside'] = 0
     args['ignore_label'] = None
-    args['patches'] = True
-    args['patch_size'] = 5 # only odd values
     args['use_mnf'] = False
     args['use_pca'] = False
     args['spatial_coord'] = False
