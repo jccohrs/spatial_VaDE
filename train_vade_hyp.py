@@ -53,8 +53,7 @@ def classify(output_path, image, weights, gt, n_cl, gt_file, ignore_label=None, 
     args = {'spatial_coord': add_spatial}
     args['use_mnf'] = False
     args['use_pca'] = False
-    args['ignore_label_inside'] = ignore_label
-    args['ignore_label'] = None
+    args['ignore_label'] = ignore_label
     args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
     args['batch_size'] = 100
     args['latent_dim'] = 10
@@ -68,7 +67,7 @@ def classify(output_path, image, weights, gt, n_cl, gt_file, ignore_label=None, 
     vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
                 encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=im.shape[:-1],
                 one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
-                directory=output_path, ignore_label=args['ignore_label_inside'])
+                directory=output_path, ignore_label=args['ignore_label'])
 
     print('Initialized VaDE model.')
     vade.to(args['device'])
@@ -166,18 +165,9 @@ def prepare_data(im, gt, args, seed_worker, generator):
     #--------------------------------------------------------------------------------#
     # remove pixels with ignore label
     #--------------------------------------------------------------------------------#
-    if args['ignore_label'] is None:
-        #pxs = im.reshape((-1, im.shape[-1]))
-        pxs = im_with_right_and_below
+        pxs = im.reshape((-1, im.shape[-1]))
         lbs = np.ravel(gt)
-    else:
-        #pxs = im[gt != args['ignore_label']]
-        #lbs = gt[gt != args['ignore_label']]
-        pxs = im_with_right_and_below
-        lbs = np.ravel(gt)
-        index = lbs!= args['ignore_label']
-        lbs = lbs[index]
-        pxs = pxs[index]
+
     #----------------------------------------------------------------------------------#
     # to avoid problems with segment numbering, rebuild it if ground truth is given
     #----------------------------------------------------------------------------------#
@@ -199,34 +189,22 @@ def save_segmentation(exp_dir, exp_spec_path, seg, args):
     print(f'Labels in segmentation: {np.unique(seg)}')
     print(f'Number of labels in seg: {len(np.unique(seg))}')
 
-    if args['ignore_label'] is None:
-        if args['use_mnf']:
-            filename = f'seg-{exp_spec_path}_mnf_all_pxs'
-        else:
-            filename = f'seg-{exp_spec_path}_all_pxs'
-        # save full segmentation
-        save_gt_colored_segmentation(f'{exp_dir}/{filename}_full.png', seg, args['gt_file'],
-                                     args['ignore_label_inside'], True, None, False, False)
-        # save masked segmentation
-        save_gt_colored_segmentation(f'{exp_dir}/{filename}_masked.png', seg, args['gt_file'],
-                                     args['ignore_label_inside'], False, None, False, True)
-        # save wrongly and correctly classified pixels
-        visualize_correct_wrong_pixels(f'{exp_dir}/{filename}.png', seg, args['gt'], args['gt_file'],
-                                       args['ignore_label_inside'])
-        # store found segmentation as netCDF file
-        saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
+    if args['use_mnf']:
+        filename = f'seg-{exp_spec_path}_mnf_all_pxs'
     else:
-        # TODO: code ignoring pixels in computations outdated!
-        # if args['use_mnf']:
-        #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}\\
-        # _reg{args["regularizer"]}_mnf_ignore_pxs'
-        # else:
-        #     filename = f'seg_{args["image_file"]}_ncl{args["n_cl"]}_ldim{args["latent_dim"]}\\
-        # _reg{args["regularizer"]}_ignore_pxs'
-        # seg[gt != ignore_label] = y_pred + 1
-        # saveColoredSegmentation(seg, f'"final_directory"/{filename}.png', None, args['ignore_label_inside'],
-        #                         True, gt)
-        saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
+        filename = f'seg-{exp_spec_path}_all_pxs'
+    # save full segmentation
+    save_gt_colored_segmentation(f'{exp_dir}/{filename}_full.png', seg, args['gt_file'],
+                                args['ignore_label'], True, None, False, False)
+    # save masked segmentation
+    save_gt_colored_segmentation(f'{exp_dir}/{filename}_masked.png', seg, args['gt_file'],
+                                args['ignore_label'], False, None, False, True)
+    # save wrongly and correctly classified pixels
+    visualize_correct_wrong_pixels(f'{exp_dir}/{filename}.png', seg, args['gt'], args['gt_file'],
+                                args['ignore_label'])
+    # store found segmentation as netCDF file
+    saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
+
 
 
 def parse_log(path_to_log):
@@ -384,7 +362,7 @@ def hyper_opt(args):
         vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
                 encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=im.shape[:-1],
                 one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
-                directory=exp_dir, ignore_label=args['ignore_label_inside'])
+                directory=exp_dir, ignore_label=args['ignore_label'])
         print('Initialized VaDE model.')
         vade.to(args['device'])
         print(f'Pushed model to {args["device"]}.')
@@ -420,7 +398,7 @@ def hyper_opt(args):
         #---------------------------------------------------------------------------------------#
 
         print('Evaluate segmentation...')
-        score = segmentation_scores(seg, gt, args['ignore_label_inside'])
+        score = segmentation_scores(seg, gt, args['ignore_label'])
         print(score)
         #---------------------------------------------------------------------------------------#
         #print the total time of execution
@@ -485,8 +463,7 @@ def main():
     args['visualize'] = False
     args['mnf_features'] = 16 #6
     args['latent_dim'] = 10
-    args['ignore_label_inside'] = 0
-    args['ignore_label'] = None
+    args['ignore_label'] = 0
     args['use_mnf'] = False
     args['use_pca'] = False
     args['spatial_coord'] = False
@@ -513,7 +490,7 @@ def main():
     args = prepare_data(im, gt, args, seed_worker, g)
 
     # run hyperopt to do hyperparameter tuning
-    trials=Trials()
+    trials = Trials()
     best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
                 rstate=np.random.default_rng(seed_hyp), trials=trials)
 
