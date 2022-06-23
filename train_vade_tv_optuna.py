@@ -12,14 +12,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-from hyperopt import Trials, fmin, hp, rand
 import optuna
 from functools import partial
 from netCDF4 import Dataset as ncDataset
 from sklearn.decomposition import PCA
 from spectral import calc_stats, mnf, noise_from_diffs
 from torch.utils.data import DataLoader, Dataset
-from vade import VaDE
+from vade_tv import VaDE
 
 from msiplib.image.manipulators import normalize_image
 from msiplib.io import saveArrayAsNetCDF, Tee
