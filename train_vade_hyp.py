@@ -17,6 +17,7 @@ from netCDF4 import Dataset as ncDataset
 from sklearn.decomposition import PCA
 from spectral import calc_stats, mnf, noise_from_diffs
 from torch.utils.data import DataLoader, Dataset
+from torchvision.transforms.functional import pad, unfold
 from vade import VaDE
 
 from msiplib.image.manipulators import normalize_image
@@ -96,6 +97,7 @@ def classify(output_path, image, weights, gt, n_cl, gt_file, ignore_label=None, 
 
 def prepare_data(im, gt, args, seed_worker, generator):
     ''' function that prepares the data and dataloader for the training of VaDE '''
+    # TODO: convert data into torch array as soon as possible and work only in torch, possibly on GPU
 
     #------------------------------------------------------------------------------#
     # apply MNF for denoising
@@ -131,42 +133,43 @@ def prepare_data(im, gt, args, seed_worker, generator):
         im = np.dstack((im, norm_x_cor))
         im = np.dstack((im, norm_y_cor))
 
+    # if training on patches, pad image and extend pixels by their suroundings
+    if args['patches']:
+        im_tensor = torch.permute(torch.from_numpy(im), (2, 0, 1))
+        im_tensor_pad = pad(im_tensor, padding=args['patch_size'] // 2, fill=0, padding_mode='reflect')
+        im = torch.permute(im_tensor_pad, (1, 2, 0)).numpy()
+
     args['im'] = im
     args['gt'] = gt
     args['data_dim'] = im.shape[-1]
     args['fd_inv_stepsize'] = max(im.shape[1],im.shape[0])
 
     #-----------------------------------------------------------------------------#
-    # add the right and bottom part of the image to create a new data strucutre
-    # so that we can use the variational method
+    # add the right and bottom neighbor to each pixel if total variation regularization is used.
 
-    #comment out the line with # for getting zero padding on right and bottom
+    # comment out the line with # for getting zero padding on right and bottom
     #-----------------------------------------------------------------------------#
-    im_with_right_and_below = np.zeros((im.shape[0] * im.shape[1], 3 * im.shape[2]))
-    for i in range(im.shape[0]):
-        for j in range(im.shape[1]):
-            if (j < (im.shape[1] - 1)) and (i < (im.shape[0] - 1)):
-                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
-                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j + 1, :]
-                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i + 1, j, :]
-            elif (j == (im.shape[1] - 1)) and (i < (im.shape[0] - 1)):
-                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
-                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j, :] #
-                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i + 1, j, :]
-            elif (j < (im.shape[1] - 1)) and (i == (im.shape[0] - 1)):
-                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
-                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j + 1, :]
-                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i, j, :] #
-            else:
-                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
-                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j, :] #
-                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i, j, :] #
-
-    #--------------------------------------------------------------------------------#
-    # remove pixels with ignore label
-    #--------------------------------------------------------------------------------#
-        pxs = im.reshape((-1, im.shape[-1]))
-        lbs = np.ravel(gt)
+    if not args['regularizer'] == 0:
+        im_with_right_and_below = np.zeros((im.shape[0] * im.shape[1], 3 * im.shape[2]))
+        for i in range(im.shape[0]):
+            for j in range(im.shape[1]):
+                if (j < (im.shape[1] - 1)) and (i < (im.shape[0] - 1)):
+                    im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
+                    im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j + 1, :]
+                    im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i + 1, j, :]
+                elif (j == (im.shape[1] - 1)) and (i < (im.shape[0] - 1)):
+                    im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
+                    im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j, :] #
+                    im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i + 1, j, :]
+                elif (j < (im.shape[1] - 1)) and (i == (im.shape[0] - 1)):
+                    im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
+                    im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j + 1, :]
+                    im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i, j, :] #
+                else:
+                    im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
+                    im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j, :] #
+                    im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i, j, :] #
+        im = im_with_right_and_below
 
     #----------------------------------------------------------------------------------#
     # to avoid problems with segment numbering, rebuild it if ground truth is given
@@ -174,7 +177,10 @@ def prepare_data(im, gt, args, seed_worker, generator):
     if lbs is not None:
         lbs = rebuild_segment_numbering(lbs)
 
-    ds = HSIDataset(pxs, lbs, args['device'])
+    if args['patches']:
+        ds = HSIDataset(im, lbs, args['patch_size'], args['device'])
+    else:
+        ds = HSIDataset(im, lbs, None, args['device'])
 
     # args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False)
     args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False,
@@ -313,8 +319,20 @@ def read_data(filename):
 
 class HSIDataset(Dataset):
     ''' define HSI dataset '''
-    def __init__(self, pts, labels, device='cuda'):
-        self.data = torch.from_numpy(pts).float().to(device)
+    def __init__(self, im, labels, patch_size=None, device='cuda'):
+        if patch_size is not None:
+            im_torch = torch.permute(torch.from_numpy(im), (2, 0, 1))
+            im_patches = im_torch.unsqueeze(dim=0)
+            im_patches = unfold(im_patches, patch_size, stride=1, padding=0, dilation=1)
+
+
+
+            # TODO: adapt dataset to process patches
+
+
+
+
+        self.data = torch.from_numpy(im).float().to(device)
         self.labels = torch.from_numpy(labels).int().to(device)
 
     def __getitem__(self, item):
@@ -343,14 +361,15 @@ def hyper_opt(args):
         validloader = args['validloader']
         
         if args['spatial_coord']:
-            print(f'Added spatial coordinates to spectra.')
+            print('Added spatial coordinates to spectra.')
+
+        if args['patches']:
+            print(f'Input patches of size {args["patch_size"]}.')
 
         # im and gt not involved in computation on GPU
         im = args['im']
         gt = args['gt']
 
-        if args['spatial_coord']:
-            print('Spatial coordinates concatenated.')
         #--------------------------------------------------------------------------------#
         #calculate the initial time
         #--------------------------------------------------------------------------------#
@@ -416,6 +435,7 @@ def hyper_opt(args):
 
 def main():
     ''' main function '''
+    # TODO: total variation plus patches not implemented yet!
     #------------------------------------------------------------------------------#
     # make argument compatible to hyperopt
     #------------------------------------------------------------------------------#
@@ -464,6 +484,8 @@ def main():
     args['mnf_features'] = 16 #6
     args['latent_dim'] = 10
     args['ignore_label'] = 0
+    args['patches'] = True
+    args['patch_size'] = 5 # only odd values
     args['use_mnf'] = False
     args['use_pca'] = False
     args['spatial_coord'] = False
@@ -474,7 +496,14 @@ def main():
     #--------------------------------------------------------------------------------#
 
     directory =f'{args["image_file"]}'
-    current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade-tv')
+    if args['patches'] and not args['regularizer'] == 0:
+        current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade/patch-tv')
+    elif args['patches']:
+        current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade/patch')
+    elif not args['regularizer'] == 0:
+        current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade/tv')
+    else:
+        current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade/pure')
     final_directory = os.path.join(current_directory+'/', directory)
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
