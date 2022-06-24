@@ -103,6 +103,7 @@ class VaDE(nn.Module):
         self.im_shape = im_shape
         self.one_by_delta_x = one_by_delta_x
         self.use_cuda = torch.cuda.is_available()
+        self.input_dim = input_dim
 
         #--------------------------------------------------------------------------------#
         # initialize encoder and decoder network
@@ -175,8 +176,12 @@ class VaDE(nn.Module):
 
         for _, (inputs, _) in enumerate(dataloader):
             inputs = Variable(inputs)
-            data_dim = int(inputs.shape[1] / 3)
-            z, _, _, _, _ = self.forward(inputs[:, 0:data_dim])
+            if self.lambdas != 0:
+                data_dim = int(inputs.shape[1] / 3)
+                z, _, _, _, _ = self.forward(inputs[:, 0:data_dim])
+            else:
+                z, _, _, _, _ = self.forward(inputs)
+
 
             # GMM fitted on cpu, therefore moving data to cpu is okay.
             data.append(z.data.cpu().numpy())
@@ -226,15 +231,18 @@ class VaDE(nn.Module):
         gamma = p_c_z / torch.sum(p_c_z, dim=1, keepdim=True)
         return gamma
 
-    def loss_function(self, inputs, mu_x, logvar_x, z, z_mean, z_log_var, z_right, z_bottom):
+    def loss_function(self, inputs, mu_x, logvar_x, z, z_mean, z_log_var, z_right=None, z_bottom=None):
         # TODO: revisit function and remove unnecessary parts
         z_mean_t = z_mean.unsqueeze(2)
         z_log_var_t = z_log_var.unsqueeze(2)
         gamma = self.get_gamma(z)
 
-        gamma_right = self.get_gamma(z_right)
-        gamma_bottom = self.get_gamma(z_bottom)
-        x = inputs[:, 0:int(inputs.shape[1] / 3)]
+        if self.lambdas != 0:
+            gamma_right = self.get_gamma(z_right)
+            gamma_bottom = self.get_gamma(z_bottom)
+            x = inputs[:, 0:int(inputs.shape[1] / 3)]
+        else:
+            x = inputs
 
         self.prior_init.data.copy_(self.soft_max(self.prior_init))
         #--------------------------------------------------------------------------------#
@@ -272,17 +280,21 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # Regularize with gamma=q(c|x)
         #--------------------------------------------------------------------------------#
-        delta_qcx_right = self.one_by_delta_x * (gamma_right - gamma)
-        delta_qcx_bottom =self.one_by_delta_x * (gamma_bottom - gamma)
+        if self.lambdas != 0:
+            delta_qcx_right = self.one_by_delta_x * (gamma_right - gamma)
+            delta_qcx_bottom = self.one_by_delta_x * (gamma_bottom - gamma)
 
-        square_sum_qcx = (delta_qcx_right)**2 + (delta_qcx_bottom)**2
+            square_sum_qcx = (delta_qcx_right)**2 + (delta_qcx_bottom)**2
 
-        norm_qcx = (square_sum_qcx + 0.01)**(0.5)
+            norm_qcx = (square_sum_qcx + 0.01)**(0.5)
 
-        #--------------------------------------------------------------------------------#
-        # final loss function
-        #--------------------------------------------------------------------------------#
-        loss = torch.mean(log_pxz + logpzc + logpc + qentropy + logqcx) + self.lambdas * torch.mean(torch.sum(norm_qcx, 1))
+            #--------------------------------------------------------------------------------#
+            # final loss function
+            #--------------------------------------------------------------------------------#
+            loss = torch.mean(log_pxz + logpzc + logpc + qentropy + logqcx) + self.lambdas * torch.mean(torch.sum(norm_qcx, 1))
+        else:
+            loss = torch.mean(log_pxz + logpzc + logpc + qentropy + logqcx)
+
 
         return loss
 
@@ -347,14 +359,18 @@ class VaDE(nn.Module):
         Gamma = []
         for _, (inputs, labels) in enumerate(dataloader):
             inputs = Variable(inputs)
-            data_dim = int(inputs.shape[1] / 3)
-            z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
-            z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
-            z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
+            if self.lambdas != 0:
+                data_dim = int(inputs.shape[1] / 3)
+                z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
+                z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
+                z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
+                loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
+            else:
+                z, mu, logvar, mu_x, logvar_x = self.forward(inputs)
+                loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar)
 
             Z.append(z.detach().cpu().numpy())
 
-            loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
 
             valid_loss += loss.data.item() * len(inputs)
 
@@ -404,17 +420,19 @@ class VaDE(nn.Module):
         for _, (inputs, labels) in enumerate(validloader):
             inputs = Variable(inputs)
 
-            data_dim = int(inputs.shape[1] / 3)
-            z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
-
-            z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
-            z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
+            if self.lambdas != 0:
+                data_dim = int(inputs.shape[1] / 3)
+                z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
+                z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
+                z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
+                loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
+            else:
+                z, mu, logvar, mu_x, logvar_x = self.forward(inputs)
+                loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar)
 
             # TODO: Necessary to have it in numpy on cpu?
             Z.append(z.detach().cpu().numpy())
             Y.append(labels.cpu().numpy())
-
-            loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
 
             valid_loss += loss.data.item() * len(inputs)
 
@@ -452,12 +470,15 @@ class VaDE(nn.Module):
                 optimizer.zero_grad()
                 inputs = Variable(inputs)
 
-                data_dim =int(inputs.shape[1] / 3)
-                z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
-                z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
-                z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
-
-                loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
+                if self.lambdas != 0:
+                    data_dim =int(inputs.shape[1] / 3)
+                    z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
+                    z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
+                    z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
+                    loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
+                else:
+                    z, mu, logvar, mu_x, logvar_x = self.forward(inputs)
+                    loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar)
 
                 train_loss += loss.data.item() * len(inputs)
                 loss.backward()
@@ -475,15 +496,18 @@ class VaDE(nn.Module):
             for _, (inputs, labels) in enumerate(validloader):
                 inputs = Variable(inputs)
 
-                data_dim = int(inputs.shape[1] / 3)
-                z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
-                z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
-                z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
+                if self.lambdas != 0:
+                    data_dim = int(inputs.shape[1] / 3)
+                    z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])
+                    z_right, _, _, _, _ = self.forward(inputs[:, data_dim:2 * data_dim])
+                    z_bottom, _, _, _, _ = self.forward(inputs[:, 2 * data_dim:3 * data_dim])
+                    loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
+                else:
+                    z, mu, logvar, mu_x, logvar_x = self.forward(inputs)
+                    loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar)
 
                 # TODO: Necessary to push on CPU?
                 Z.append(z.detach().cpu().numpy())
-
-                loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar, z_right, z_bottom)
 
                 valid_loss += loss.data.item() * len(inputs)
 
