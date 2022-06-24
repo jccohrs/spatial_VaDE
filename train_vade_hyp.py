@@ -16,8 +16,9 @@ from hyperopt import Trials, fmin, hp, rand
 from netCDF4 import Dataset as ncDataset
 from sklearn.decomposition import PCA
 from spectral import calc_stats, mnf, noise_from_diffs
+from torch.nn.functional import unfold
 from torch.utils.data import DataLoader, Dataset
-from torchvision.transforms.functional import pad, unfold
+from torchvision.transforms.functional import pad
 from vade import VaDE
 
 from msiplib.image.manipulators import normalize_image
@@ -141,8 +142,8 @@ def prepare_data(im, gt, args, seed_worker, generator):
 
     args['im'] = im
     args['gt'] = gt
-    args['data_dim'] = im.shape[-1]
-    args['fd_inv_stepsize'] = max(im.shape[1],im.shape[0])
+    args['data_dim'] = im.shape[-1] * args['patch_size']**2 if args['patches'] else im.shape[-1]
+    args['fd_inv_stepsize'] = max(im.shape[1], im.shape[0])
 
     #-----------------------------------------------------------------------------#
     # add the right and bottom neighbor to each pixel if total variation regularization is used.
@@ -174,13 +175,13 @@ def prepare_data(im, gt, args, seed_worker, generator):
     #----------------------------------------------------------------------------------#
     # to avoid problems with segment numbering, rebuild it if ground truth is given
     #----------------------------------------------------------------------------------#
-    if lbs is not None:
-        lbs = rebuild_segment_numbering(lbs)
+    if gt is not None:
+        gt = rebuild_segment_numbering(gt)
 
     if args['patches']:
-        ds = HSIDataset(im, lbs, args['patch_size'], args['device'])
+        ds = HSIDataset(im, gt, args['patch_size'], args['device'])
     else:
-        ds = HSIDataset(im, lbs, None, args['device'])
+        ds = HSIDataset(im, gt, None, args['device'])
 
     # args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False)
     args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False,
@@ -192,6 +193,7 @@ def prepare_data(im, gt, args, seed_worker, generator):
     return args
 
 def save_segmentation(exp_dir, exp_spec_path, seg, args):
+    ''' function to save segmentation results '''
     print(f'Labels in segmentation: {np.unique(seg)}')
     print(f'Number of labels in seg: {len(np.unique(seg))}')
 
@@ -210,7 +212,6 @@ def save_segmentation(exp_dir, exp_spec_path, seg, args):
                                 args['ignore_label'])
     # store found segmentation as netCDF file
     saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
-
 
 
 def parse_log(path_to_log):
@@ -321,19 +322,25 @@ class HSIDataset(Dataset):
     ''' define HSI dataset '''
     def __init__(self, im, labels, patch_size=None, device='cuda'):
         if patch_size is not None:
+            # convert image into torch array and bring axes in the order (C, H, W)
             im_torch = torch.permute(torch.from_numpy(im), (2, 0, 1))
+            # add a fourth leading dimension to match the requirements of unfold
             im_patches = im_torch.unsqueeze(dim=0)
-            im_patches = unfold(im_patches, patch_size, stride=1, padding=0, dilation=1)
+            # extract patches from the image. the output of unfold is a tensor of size (C * "pixels in patch", H * W)
+            # the function extracts the data of the patches from left to right and top to bottom.
+            # hence, im_patches[:, i * W + j] contains all values of the patch of pixel (i, j) (images was padded such
+            # that there is one patch for each pixel.
+            # the values of the patch are stored in the one-dimensional array im_patches[:, i * W + j] and arranged
+            # such that the array starts with the first row of the first channel of the patch, continues with the
+            # second row, until the patch in the first channel was unrolled, then the second channel follows in the
+            # the same way, row by row.
+            im_patches = unfold(im_patches, patch_size, stride=1, padding=0, dilation=1).squeeze()
+            # transpose im_patches to have the patches as rows
+            self.data = im_patches.permute((1, 0)).float().to(device)
+        else:
+            self.data = torch.from_numpy(im.reshape((-1, im.shape[-1]))).float().to(device)
 
-
-
-            # TODO: adapt dataset to process patches
-
-
-
-
-        self.data = torch.from_numpy(im).float().to(device)
-        self.labels = torch.from_numpy(labels).int().to(device)
+        self.labels = torch.from_numpy(np.ravel(labels)).int().to(device)
 
     def __getitem__(self, item):
         return self.data[item], self.labels[item]
@@ -347,7 +354,10 @@ def hyper_opt(args):
     now = datetime.now()
     time_stamp = f'{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}-{now.second}'
 
-    exp_spec_path = f'ep{args["epochs"]}_ldim{args["latent_dim"]}_reg{str(args["regularizer"]).replace(".", "_")}_spat{int(args["spatial_coord"])}'
+    if args['patches']:
+        exp_spec_path = f'ep{args["epochs"]}_ldim{args["latent_dim"]}_reg{str(args["regularizer"]).replace(".", "_")}_spat{int(args["spatial_coord"])}_patch{args["patch_size"]}'
+    else:
+        exp_spec_path = f'ep{args["epochs"]}_ldim{args["latent_dim"]}_reg{str(args["regularizer"]).replace(".", "_")}_spat{int(args["spatial_coord"])}'
     exp_dir = f'{args["final_directory"]}/{time_stamp}-{exp_spec_path}'
     if not os.path.exists(exp_dir):
         os.mkdir(exp_dir)
@@ -359,7 +369,7 @@ def hyper_opt(args):
         print(f'Device: {args["device"]}')
         dataloader = args['dataloader']
         validloader = args['validloader']
-        
+
         if args['spatial_coord']:
             print('Added spatial coordinates to spectra.')
 
