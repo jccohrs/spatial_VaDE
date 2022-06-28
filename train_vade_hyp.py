@@ -100,6 +100,7 @@ def prepare_data(im, gt, args, seed_worker, generator):
     ''' function that prepares the data and dataloader for the training of VaDE '''
     # TODO: convert data into torch array as soon as possible and work only in torch, possibly on GPU
 
+    args['im_shape'] = im.shape
     #------------------------------------------------------------------------------#
     # apply MNF for denoising
     #------------------------------------------------------------------------------#
@@ -249,7 +250,7 @@ def parse_log(path_to_log):
 def plot_stats(path, data):
     ''' plot training statistics '''
     averaging_width = 11
-    ylim_lower = -1300
+    ylim_lower = min(data['train loss'].min(), data['valid loss'].min())
     # plot train loss
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -389,7 +390,7 @@ def hyper_opt(args):
         # init model
         #------------------------------------------------------------------------------------#
         vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
-                encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=im.shape[:-1],
+                encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1],
                 one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
                 directory=exp_dir, ignore_label=args['ignore_label'])
         print('Initialized VaDE model.')
@@ -419,7 +420,7 @@ def hyper_opt(args):
             vade.save_model(save_location)
 
         print('Save found segmentation...')
-        seg = y_pred.reshape(args['im'].shape[:-1]).astype(np.uint8)
+        seg = y_pred.reshape(args['im_shape'][:-1]).astype(np.uint8)
         save_segmentation(exp_dir, exp_spec_path, seg, args)
 
         #---------------------------------------------------------------------------------------#
@@ -454,6 +455,7 @@ def main():
     lam_upper = 0.025
     # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
     args['regularizer'] = 0
+    max_evals = 1
 
     #------------------------------------------------------------------------------#
     # seed the randomness, reduce non-determinism
@@ -469,7 +471,6 @@ def main():
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     torch.use_deterministic_algorithms(True)
-    max_evals = 1
 
     # determinism for dataloader
     def seed_worker(worker_id):
@@ -484,12 +485,12 @@ def main():
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    args['image_file'] = 'IndianPines'
+    args['image_file'] = 'SalinasA'
 
     #------------------------------------------------------------------------------#
     # Specify the features
     #------------------------------------------------------------------------------#
-    args['n_cl'] = 16
+    args['n_cl'] = 6
     args['visualize'] = False
     args['mnf_features'] = 16 #6
     args['latent_dim'] = 10
