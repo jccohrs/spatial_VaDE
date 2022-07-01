@@ -98,7 +98,6 @@ def classify(output_path, image, weights, gt, n_cl, gt_file, ignore_label=None, 
 
 def prepare_data(im, gt, args, seed_worker, generator):
     ''' function that prepares the data and dataloader for the training of VaDE '''
-    # TODO: convert data into torch array as soon as possible and work only in torch, possibly on GPU
 
     args['im_shape'] = im.shape
     #------------------------------------------------------------------------------#

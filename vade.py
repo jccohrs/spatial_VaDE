@@ -235,7 +235,6 @@ class VaDE(nn.Module):
 
     def loss_function(self, inputs, mu_x, logvar_x, z, z_mean, z_log_var, z_right=None, z_bottom=None):
         ''' Function computes the loss of the network '''
-        # TODO: revisit function and remove unnecessary parts
         z_mean_t = z_mean.unsqueeze(2)
         z_log_var_t = z_log_var.unsqueeze(2)
         gamma = self.get_gamma(z)
@@ -412,7 +411,6 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         self.eval()
         valid_loss = 0.0
-        # TODO: Z and Y in torch on gpu?
         z_all = []
         y = []
         for _, (inputs, labels) in enumerate(validloader):
@@ -428,14 +426,12 @@ class VaDE(nn.Module):
                 z, mu, logvar, mu_x, logvar_x = self.forward(inputs)
                 loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar)
 
-            # TODO: Necessary to have it in numpy on cpu?
             z_all.append(z.detach().cpu().numpy())
             y.append(labels.cpu().numpy())
 
             valid_loss += loss.data.item() * len(inputs)
 
         if visualize:
-            # TODO: have computations on GPU also in torch? Also TSNE?
             y = np.concatenate(y)
             z_all = np.concatenate(z_all)
             self.visualize_latent_space(z_all, y, epoch=-1)
@@ -517,7 +513,6 @@ class VaDE(nn.Module):
                 #--------------------------------------------------------------------------------#
                 # compute predicted labels by taking the argmax over gamma (q(c | z))
                 #--------------------------------------------------------------------------------#
-                # TODO: Can the computations be made with torch on GPU?
                 y_pred.append(torch.argmax(gamma, dim=1).cpu().numpy())
                 y.append(labels.cpu().numpy())
 
