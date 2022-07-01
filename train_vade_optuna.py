@@ -15,17 +15,19 @@ import pandas as pd
 import torch
 from hyperopt import Trials, fmin, hp, rand
 import optuna
+from optuna.samplers import TPESampler
 from functools import partial
 from netCDF4 import Dataset as ncDataset
 from sklearn.decomposition import PCA
 from spectral import calc_stats, mnf, noise_from_diffs
 from torch.utils.data import DataLoader, Dataset
-from vade import VaDE
+from vade_opt import VaDE
 
 from msiplib.image.manipulators import normalize_image
 from msiplib.io import saveArrayAsNetCDF, Tee
-from msiplib.io.segmentation import (save_gt_colored_segmentation,
-                                    visualize_correct_wrong_pixels)
+from msiplib.io.segmentation import save_gt_colored_segmentation
+#from msiplib.io.segmentation import (save_gt_colored_segmentation,
+#                                   visualize_correct_wrong_pixels)
 from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
 
@@ -197,7 +199,7 @@ def optuna_opt(trial,args,lam_lower,lam_upper):
         #------------------------------------------------------------------------------------#
         # init model
         #------------------------------------------------------------------------------------#
-        vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
+        vade = VaDE(trial, input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
                 encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500],
                 one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
                 directory=args['final_directory'], ignore_label=args['ignore_label_inside'])
@@ -218,6 +220,7 @@ def optuna_opt(trial,args,lam_lower,lam_upper):
         print("Initialized through GMM.")
 
         print('Fit the model...')
+
         y_pred = vade.fit(dataloader, validloader, lr=args['lr'], num_epochs=args['epochs'],
                           anneal=False, visualize=False)
 
@@ -233,6 +236,7 @@ def optuna_opt(trial,args,lam_lower,lam_upper):
         print(f'Labels in segmentation: {np.unique(seg)}')
         print(f'Number of labels in seg: {len(np.unique(seg))}')
 
+        '''
         if args['ignore_label'] is None:
             if args['use_mnf']:
                 filename = f'seg-{exp_spec_path}_mnf_all_pxs'
@@ -245,8 +249,8 @@ def optuna_opt(trial,args,lam_lower,lam_upper):
             save_gt_colored_segmentation(f'{exp_dir}/{filename}_masked.png', seg, args['gt_file'],
                                          args['ignore_label_inside'], False, None, False, True)
             # save wrongly and correctly classified pixels
-            visualize_correct_wrong_pixels(f'{exp_dir}/{filename}.png', seg, gt, args['gt_file'],
-                                           args['ignore_label_inside'])
+            #visualize_correct_wrong_pixels(f'{exp_dir}/{filename}.png', seg, gt, args['gt_file'],
+            #                              args['ignore_label_inside'])
             # store found segmentation as netCDF file
             saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
         else:
@@ -261,7 +265,7 @@ def optuna_opt(trial,args,lam_lower,lam_upper):
             # saveColoredSegmentation(seg, f'"final_directory"/{filename}.png', None, args['ignore_label_inside'],
             #                         True, gt)
             saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
-
+        '''
         #---------------------------------------------------------------------------------------#
         # evaluate segmentation
         #---------------------------------------------------------------------------------------#
@@ -274,7 +278,7 @@ def optuna_opt(trial,args,lam_lower,lam_upper):
         #---------------------------------------------------------------------------------------#
 
         print(f"--- {(time.time() - start_time)} seconds ---")
-
+    
     # parse log file, store the extracted values and plot the stats
     df_log = parse_log(logfile_path)
     df_log.to_csv(f'{exp_dir}/exp_stats.csv', sep=',', header=True, index=False)
@@ -308,12 +312,13 @@ def main():
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    args['image_file'] = 'IndianPines'
+    #args['image_file'] = 'IndianPines'
+    args['image_file'] = 'SalinasA_mod'
 
     #------------------------------------------------------------------------------#
     # Specify the features
     #------------------------------------------------------------------------------#
-    args['n_cl'] = 16 #6 #7
+    args['n_cl'] = 7 #6 #16
     args['mnf_features'] = 16 #6
     args['latent_dim'] = 10
     args['ignore_label_inside'] = 0
@@ -435,6 +440,7 @@ def main():
     study=optuna.create_study(direction="minimize",study_name="optuna_test",sampler=sampler)
     study.optimize(partial(optuna_opt,args=args,lam_lower=lam_lower,lam_upper=lam_upper),n_trials=max_evals)
 
+    
     #best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
                 #rstate=np.random.default_rng(seed_hyp), trials=trials)
     print("Best trial:")
@@ -451,22 +457,25 @@ def main():
 
     # TODO: Fix problem with the case when a fixed lambda is given. In that case only loss and not lambda are stored in df.
 
-    breakpoint()
     # append results of hyperopt run to csv file
-    output_optuna = f'{final_directory}/hyp_{args["image_file"]}.txt'
+    output_optuna = f'{final_directory}/opt_{args["image_file"]}.csv'
     df.to_csv(output_optuna, sep=" ", index=False, mode='a', header=False)
 
     # read the full hyperopt results file and update the plot
-    df = pd.read_csv(output_optuna, sep=' ', header=0)
-    breakpoint()
-    fig, ax = plt.subplots(len(df.columns) - 1)
-    for i in range(1, len(df.columns)):
-        if len(df.columns) - 1 == 1:
-            ax.scatter(df[df.columns[i]], df['loss'])
-            ax.set(xlabel=df.columns[i], ylabel='OA')
+    #df = pd.read_csv(output_optuna, sep=' ', header=0)
+
+    # Name of parameter is written as params_name_of_parameter
+    list_columnn=["value","params_regularizer"]
+    data_plot=df[list_columnn]
+    #print(data_plot)
+    fig, ax = plt.subplots(len(data_plot.columns) - 1)
+    for i in range(1, len(data_plot.columns)):
+        if len(data_plot.columns) - 1 == 1:
+            ax.scatter(data_plot[data_plot.columns[i]], df['value'])
+            ax.set(xlabel=data_plot.columns[i], ylabel='OA')
         else:
-            ax[i - 1].scatter(df[df.columns[i]], df['loss'])
-            ax[i - 1].set(xlabel=df.columns[i], ylabel='OA')
+            ax[i - 1].scatter(data_plot[data_plot.columns[i]], df['value'])
+            ax[i - 1].set(xlabel=data_plot.columns[i], ylabel='OA')
 
     fig.savefig(f'{final_directory}/lambda_vs_OA.png')
 
