@@ -196,10 +196,10 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # copy learned data to parameters of the network
         #--------------------------------------------------------------------------------#
-
-        self.prior_init.data.copy_(torch.from_numpy(gmm.weights_.T.astype(np.float32)))
-        self.mean_init.data.copy_(torch.from_numpy(gmm.means_.T.astype(np.float32)))
-        self.log_var_init.data.copy_(torch.from_numpy(np.log(gmm.covariances_.T.astype(np.float32))))
+        with torch.no_grad():
+            self.prior_init.copy_(torch.from_numpy(gmm.weights_.T.astype(np.float32)))
+            self.mean_init.copy_(torch.from_numpy(gmm.means_.T.astype(np.float32)))
+            self.log_var_init.copy_(torch.from_numpy(np.log(gmm.covariances_.T.astype(np.float32))))
 
     def reparameterize(self, mu, logvar):
         ''' sample an auxiliary variable and reparameterize it '''
