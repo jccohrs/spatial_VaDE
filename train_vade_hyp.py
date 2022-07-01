@@ -135,6 +135,8 @@ def prepare_data(im, gt, args, seed_worker, generator):
         im = np.dstack((im, norm_x_cor))
         im = np.dstack((im, norm_y_cor))
 
+    args['fd_inv_stepsize'] = max(im.shape[1], im.shape[0])
+
     # if training on patches, pad image and extend pixels by their suroundings
     if args['patches']:
         im_tensor = torch.permute(torch.from_numpy(im), (2, 0, 1))
@@ -144,14 +146,13 @@ def prepare_data(im, gt, args, seed_worker, generator):
     args['im'] = im
     args['gt'] = gt
     args['data_dim'] = im.shape[-1] * args['patch_size']**2 if args['patches'] else im.shape[-1]
-    args['fd_inv_stepsize'] = max(im.shape[1], im.shape[0])
 
     #-----------------------------------------------------------------------------#
     # add the right and bottom neighbor to each pixel if total variation regularization is used.
 
     # comment out the line with # for getting zero padding on right and bottom
     #-----------------------------------------------------------------------------#
-    if not args['regularizer'] == 0:
+    if args['regularizer'] != 0:
         im_with_right_and_below = np.zeros((im.shape[0] * im.shape[1], 3 * im.shape[2]))
         for i in range(im.shape[0]):
             for j in range(im.shape[1]):
