@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 from torch import nn
 from torch import optim
 from torch.autograd import Variable
+from torch.nn.functional import softmax
 from scipy.optimize import linear_sum_assignment as linear_assignment
 from sklearn.manifold import TSNE
-# from tsnecuda import TSNE
 from sklearn.mixture import GaussianMixture
 
 from msiplib.io import saveArrayAsNetCDF
@@ -52,9 +52,8 @@ def buildNetwork(layers, activation="relu", dropout=0):
         # add activation function
         #--------------------------------------------------------------------------------#
         if activation == "relu":
-            # TODO: which activation do we use? relu also in original vade?
+            # original implementation uses ReLU
             net.append(nn.ReLU())
-            #net.append(nn.LeakyReLU())
         elif activation == "sigmoid":
             net.append(nn.Sigmoid())
 
@@ -69,9 +68,7 @@ def buildNetwork(layers, activation="relu", dropout=0):
     return nn.Sequential(*net)
 
 def adjust_learning_rate(init_lr, optimizer, epoch):
-    #--------------------------------------------------------------------------------#
-    # function implements a learning rate scheduler
-    #--------------------------------------------------------------------------------#
+    ''' learning rate scheduler '''
     lr = max(init_lr * (0.9 ** (epoch // 10)), 0.0002)
     for param_group in optimizer.param_groups:
         param_group["lr"] = lr
@@ -80,7 +77,7 @@ def adjust_learning_rate(init_lr, optimizer, epoch):
 log2pi = math.log(2 * math.pi)
 def log_likelihood_samples_unit_gaussian(samples):
     #TODO: derive formula and compare
-    return -0.5 * log2pi * samples.size()[1] - torch.sum(0.5 * (samples) ** 2, 1)
+    return -0.5 * log2pi * samples.size()[1] - torch.sum(0.5 * (samples)**2, 1)
 
 def log_likelihood_samplesImean_sigma(samples, mu, logvar):
     #TODO: derive formula and compare
@@ -92,7 +89,7 @@ def log_likelihood_samplesImean_sigma(samples, mu, logvar):
 
 
 class VaDE(nn.Module):
-    def __init__(self, input_dim=784, z_dim=10, n_centroids=10,
+    def __init__(self, input_dim=200, z_dim=10, n_centroids=10,
         encodeLayer=[500, 500,2000], decodeLayer=[2000, 500, 500],
         im_shape=(145, 145), one_by_delta_x=100, regularization=0.01,
         directory='Without_batch_normal', ignore_label=None):
@@ -120,7 +117,8 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # add output layers of decoder
         #--------------------------------------------------------------------------------#
-        self._dec_mu = nn.Linear(decodeLayer[-1], input_dim) # original implementation applies sigmoid for MNIST and relu otherwise afterwards.
+        # original implementation applies sigmoid activation for MNIST, no activation in all other cases
+        self._dec_mu = nn.Linear(decodeLayer[-1], input_dim)
         self._dec_log_sigma = nn.Linear(decodeLayer[-1], input_dim)
 
         #--------------------------------------------------------------------------------#
@@ -143,15 +141,9 @@ class VaDE(nn.Module):
         self.log_var_init = nn.Parameter(torch.zeros(z_dim, n_centroids))
 
         #--------------------------------------------------------------------------------#
-        #object for softmax
-        #--------------------------------------------------------------------------------#
-        # TODO: where do we need the softmax function?
-        self.soft_max=nn.Softmax(dim=0)
-
-        #--------------------------------------------------------------------------------#
         #initialize regularizer parameter
         #--------------------------------------------------------------------------------#
-        self.lambdas= regularization
+        self.lambdas = regularization
 
         #--------------------------------------------------------------------------------#
         # Ignore label variable
@@ -160,6 +152,10 @@ class VaDE(nn.Module):
 
 
     def initialize_gmm(self, dataloader):
+        '''
+            after initialization of the network weights, map the samples to the latent space and fit a GMM
+            to initialize the parameters of the GMM that are later tuned during training
+        '''
         #--------------------------------------------------------------------------------#
         # iniitialize GMM by applying the encoder and computing the z's that can then be clustered with the GMM
         #--------------------------------------------------------------------------------#
@@ -204,6 +200,7 @@ class VaDE(nn.Module):
         self.log_var_init.data.copy_(torch.from_numpy(np.log(gmm.covariances_.T.astype(np.float32))))
 
     def reparameterize(self, mu, logvar):
+        ''' sample an auxiliary variable and reparameterize it '''
         # TODO: Check for correctness. does it work with batches of data?
         if self.training:
             std = logvar.mul(0.5).exp_()
@@ -213,6 +210,7 @@ class VaDE(nn.Module):
             return mu
 
     def decode(self, z):
+        ''' decode a latent vector back to the original space '''
         #--------------------------------------------------------------------------------#
         # apply decoder to a sample from the latent space
         #--------------------------------------------------------------------------------#
@@ -223,15 +221,18 @@ class VaDE(nn.Module):
 
 
     def get_gamma(self, z):
+        ''' compute p(c | z) as approximation to q(c | x) '''
         Z = z.unsqueeze(2)
 
-        p_c_z = torch.exp(torch.log(self.prior_init) - torch.sum(0.5*torch.log(2*math.pi*torch.exp(self.log_var_init))+\
-            (Z-self.mean_init)**2/(2*torch.exp(self.log_var_init)), dim=1)) + 1e-10 # NxK
+        p_c_z = torch.exp(torch.log(softmax(self.prior_init)) \
+            - torch.sum(0.5 * torch.log(2 * math.pi * torch.exp(self.log_var_init)) \
+            + (Z - self.mean_init)**2 / (2 * torch.exp(self.log_var_init)), dim=1)) + 1e-10 # NxK
 
         gamma = p_c_z / torch.sum(p_c_z, dim=1, keepdim=True)
         return gamma
 
     def loss_function(self, inputs, mu_x, logvar_x, z, z_mean, z_log_var, z_right=None, z_bottom=None):
+        ''' Function computes the loss of the network '''
         # TODO: revisit function and remove unnecessary parts
         z_mean_t = z_mean.unsqueeze(2)
         z_log_var_t = z_log_var.unsqueeze(2)
@@ -244,7 +245,6 @@ class VaDE(nn.Module):
         else:
             x = inputs
 
-        self.prior_init.data.copy_(self.soft_max(self.prior_init))
         #--------------------------------------------------------------------------------#
         # 1st term in equation 9 // also the 1st line in equation 12
         #--------------------------------------------------------------------------------#
@@ -254,8 +254,9 @@ class VaDE(nn.Module):
         # 2nd term in equation 9  // also the 2nd line in equation 12
         #--------------------------------------------------------------------------------#
 
-        logpzc = torch.sum(0.5 * gamma * torch.sum(self.log_var_init + \
-            torch.exp(z_log_var_t) /torch.exp(self.log_var_init) + (z_mean_t - self.mean_init)**2 / torch.exp(self.log_var_init), dim=1), dim=1)
+        logpzc = torch.sum(0.5 * gamma * torch.sum(self.log_var_init \
+            + torch.exp(z_log_var_t) /torch.exp(self.log_var_init) \
+            + (z_mean_t - self.mean_init)**2 / torch.exp(self.log_var_init), dim=1), dim=1)
 
         #--------------------------------------------------------------------------------#
         # remaining 3 terms in equation is summed up in last line of equation 12
@@ -264,7 +265,7 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # 3rd term in equation 9
         #--------------------------------------------------------------------------------#
-        logpc = -torch.sum(torch.log(self.prior_init) * gamma, 1)
+        logpc = -torch.sum(torch.log(softmax(self.prior_init)) * gamma, 1)
 
         #--------------------------------------------------------------------------------#
         # 4th term in equation 9
@@ -291,7 +292,8 @@ class VaDE(nn.Module):
             #--------------------------------------------------------------------------------#
             # final loss function
             #--------------------------------------------------------------------------------#
-            loss = torch.mean(log_pxz + logpzc + logpc + qentropy + logqcx) + self.lambdas * torch.mean(torch.sum(norm_qcx, 1))
+            loss = torch.mean(log_pxz + logpzc + logpc + qentropy + logqcx) \
+                + self.lambdas * torch.mean(torch.sum(norm_qcx, 1))
         else:
             loss = torch.mean(log_pxz + logpzc + logpc + qentropy + logqcx)
 
@@ -299,10 +301,7 @@ class VaDE(nn.Module):
         return loss
 
     def forward(self, x):
-        #--------------------------------------------------------------------------------#
-        # compute a forward pass
-        #--------------------------------------------------------------------------------#
-
+        ''' compute forward pass through network '''
         h = self.encoder(x)
         mu = self._enc_mu(h)
         logvar = self._enc_log_sigma(h)
@@ -314,6 +313,7 @@ class VaDE(nn.Module):
         torch.save(self.state_dict(), path)
 
     def load_model(self, path):
+        ''' load pretrained weights into model '''
         #--------------------------------------------------------------------------------#
         # load weights into memory
         #--------------------------------------------------------------------------------#
@@ -327,7 +327,8 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # extract all weights available in the loaded ones and also in the module itself
         #--------------------------------------------------------------------------------#
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}  # pylint: disable=unsupported-membership-test
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict} \
+            # pylint: disable=unsupported-membership-test
 
         #--------------------------------------------------------------------------------#
         # copy weights to model
@@ -348,9 +349,7 @@ class VaDE(nn.Module):
         fig.savefig(f'{self.directory}/latent_epoch{epoch}_reg{self.lambdas}.png')
 
     def predict(self, dataloader):
-        #--------------------------------------------------------------------------------#
-        # apply model with current weights to a dataset
-        #--------------------------------------------------------------------------------#
+        ''' apply model with current weights to a dataset '''
         self.eval()
         valid_loss = 0.0
         Y_pred = []
@@ -399,11 +398,7 @@ class VaDE(nn.Module):
 
     def fit(self, trainloader, validloader, lr=0.002, num_epochs=10,
         visualize=True, anneal=False):
-
-        #--------------------------------------------------------------------------------#
-        # train the model
-        #--------------------------------------------------------------------------------#
-
+        ''' train model '''
         #--------------------------------------------------------------------------------#
         # initial optimizer. the filter function only passes the parameters to Adam that need gradient
         #--------------------------------------------------------------------------------#
@@ -440,7 +435,6 @@ class VaDE(nn.Module):
             # TODO: have computations on GPU also in torch? Also TSNE?
             Y = np.concatenate(Y)
             Z = np.concatenate(Z)
-            # TODO: this visualization uses true labels, so one after finishing an epoch uses predicted labels. Not comparable!
             self.visualize_latent_space(Z, Y, epoch=-1)
 
         #--------------------------------------------------------------------------------#

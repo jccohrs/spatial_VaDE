@@ -377,8 +377,7 @@ def hyper_opt(args):
         if args['patches']:
             print(f'Input patches of size {args["patch_size"]}.')
 
-        # im and gt not involved in computation on GPU
-        im = args['im']
+        # gt not involved in computation on GPU
         gt = args['gt']
 
         #--------------------------------------------------------------------------------#
@@ -473,7 +472,7 @@ def main():
     torch.use_deterministic_algorithms(True)
 
     # determinism for dataloader
-    def seed_worker(worker_id):
+    def seed_worker(worker_id): # pylint:disable=unused-argument
         # torch.initial_seed() returns the initial seed for generating random numbers.
         # if torch.manual_seed(val) is used before, torch.initial_seed() returns val.
         worker_seed = torch.initial_seed() % 2**32
@@ -495,11 +494,11 @@ def main():
     args['mnf_features'] = 16 #6
     args['latent_dim'] = 10
     args['ignore_label'] = 0
-    args['patches'] = True
+    args['patches'] = False
     args['patch_size'] = 5 # only odd values
     args['use_mnf'] = False
     args['use_pca'] = False
-    args['spatial_coord'] = False
+    args['spatial_coord'] = True
     args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     #--------------------------------------------------------------------------------#
