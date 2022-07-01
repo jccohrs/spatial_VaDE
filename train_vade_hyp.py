@@ -99,7 +99,7 @@ def classify(output_path, image, weights, gt, n_cl, gt_file, ignore_label=None, 
 def prepare_data(im, gt, args, seed_worker, generator):
     ''' function that prepares the data and dataloader for the training of VaDE '''
 
-    args['im_shape'] = im.shape
+    args['fd_inv_stepsize'] = max(im.shape[1], im.shape[0])
     #------------------------------------------------------------------------------#
     # apply MNF for denoising
     #------------------------------------------------------------------------------#
@@ -117,11 +117,13 @@ def prepare_data(im, gt, args, seed_worker, generator):
     #------------------------------------------------------------------------------#
     if args['use_pca']:
         print('Data with PCA ...')
-        data_flat = im.reshape(im.shape[0]*im.shape[1],-1)
+        data_flat = im.reshape(im.shape[0] * im.shape[1], -1)
         pca = PCA(n_components=0.9999)
         data_pca = pca.fit_transform(data_flat)
-        im = data_pca.reshape(im.shape[0],im.shape[1],data_pca.shape[1])
+        im = data_pca.reshape(im.shape[0], im.shape[1], data_pca.shape[1])
         print('Finished dimenionality reduction of data with PCA')
+
+    args['im_shape'] = im.shape
     #------------------------------------------------------------------------------#
     # adding spatial value of pixel
     #------------------------------------------------------------------------------#
@@ -134,8 +136,6 @@ def prepare_data(im, gt, args, seed_worker, generator):
         im = np.dstack((im, norm_x_cor))
         im = np.dstack((im, norm_y_cor))
 
-    args['fd_inv_stepsize'] = max(im.shape[1], im.shape[0])
-
     # if training on patches, pad image and extend pixels by their suroundings
     if args['patches']:
         im_tensor = torch.permute(torch.from_numpy(im), (2, 0, 1))
@@ -144,7 +144,8 @@ def prepare_data(im, gt, args, seed_worker, generator):
 
     args['im'] = im
     args['gt'] = gt
-    args['data_dim'] = im.shape[-1] * args['patch_size']**2 if args['patches'] else im.shape[-1]
+    args['data_dim'] = args['im_shape'].shape[-1] * args['patch_size']**2 if args['patches'] \
+                       else args['im_shape'][-1]
 
     #-----------------------------------------------------------------------------#
     # add the right and bottom neighbor to each pixel if total variation regularization is used.
@@ -391,7 +392,7 @@ def hyper_opt(args):
         vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
                 encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1],
                 one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
-                directory=exp_dir, ignore_label=args['ignore_label'])
+                directory=exp_dir, ignore_label=args['ignore_label'], spatial=args['spatial_coord'])
         print('Initialized VaDE model.')
         vade.to(args['device'])
         print(f'Pushed model to {args["device"]}.')

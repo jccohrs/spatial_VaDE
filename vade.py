@@ -94,7 +94,7 @@ class VaDE(nn.Module):
     def __init__(self, input_dim=200, z_dim=10, n_centroids=10,
         encodeLayer=[500, 500,2000], decodeLayer=[2000, 500, 500],
         im_shape=(145, 145), one_by_delta_x=100, regularization=0.01,
-        directory='Without_batch_normal', ignore_label=None):
+        directory='.', ignore_label=None, spatial=False):
         super(VaDE, self).__init__()
         self.z_dim = z_dim
         self.n_centroids = n_centroids
@@ -103,11 +103,19 @@ class VaDE(nn.Module):
         self.one_by_delta_x = one_by_delta_x
         self.use_cuda = torch.cuda.is_available()
         self.input_dim = input_dim
+        self.spatial = spatial
 
         #--------------------------------------------------------------------------------#
         # initialize encoder and decoder network
         #--------------------------------------------------------------------------------#
-        self.encoder = build_network([input_dim] + encodeLayer)
+        if spatial:
+            # if spatial coordinates are concatenated, encode them using an extra linear layer
+            self.spectral_enc = nn.Sequential(*[nn.Linear(input_dim, encodeLayer[0]), nn.ReLU()])
+            self.spatial_enc = nn.Sequential(*[nn.Linear(2, encodeLayer[0]), nn.ReLU()])
+            self.encoder = build_network(encodeLayer)
+        else:
+            self.encoder = build_network([input_dim] + encodeLayer)
+
         self.decoder = build_network([z_dim] + decodeLayer)
 
         #--------------------------------------------------------------------------------#
@@ -249,7 +257,12 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # 1st term in equation 9 // also the 1st line in equation 12
         #--------------------------------------------------------------------------------#
-        log_pxz = 0.5 * torch.sum(math.log(2 * math.pi) + logvar_x + (x - mu_x)**2 / torch.exp(logvar_x), dim=1)
+        if self.spatial:
+            # if spatial coordinate is encoded, only reconstruct spectrum
+            log_pxz = 0.5 * torch.sum(math.log(2 * math.pi) + logvar_x + \
+                      (x[:, :-2] - mu_x)**2 / torch.exp(logvar_x), dim=1)
+        else:
+            log_pxz = 0.5 * torch.sum(math.log(2 * math.pi) + logvar_x + (x - mu_x)**2 / torch.exp(logvar_x), dim=1)
 
         #--------------------------------------------------------------------------------#
         # 2nd term in equation 9  // also the 2nd line in equation 12
@@ -303,7 +316,14 @@ class VaDE(nn.Module):
 
     def forward(self, x):
         ''' compute forward pass through network '''
-        h = self.encoder(x)
+        if self.spatial:
+            # if spatial coordinate is added, encode it in an extra feature vector
+            h_spectral = self.spectral_enc(x[:, :-2])
+            h_spatial = self.spatial_enc(x[:, -2:])
+            h = self.encoder(h_spectral + h_spatial)
+        else:
+            h = self.encoder(x)
+
         mu = self._enc_mu(h)
         logvar = self._enc_log_sigma(h)
         z = self.reparameterize(mu, logvar)
