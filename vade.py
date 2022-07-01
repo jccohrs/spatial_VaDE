@@ -1,4 +1,5 @@
 #pylint: disable=no-member
+''' module defines the VaDE class and implements all necessary functions to use the model '''
 
 import math
 
@@ -23,14 +24,14 @@ def cluster_acc(y_pred, y, ignore_label=None):
         y = y[index]
         y_pred = y_pred[index]
     assert y_pred.size == y.size
-    D = max(y_pred.max(), y.max()) + 1
-    w = np.zeros((D, D), dtype=np.int64)
+    d = max(y_pred.max(), y.max()) + 1
+    w = np.zeros((d, d), dtype=np.int64)
     for i in range(y_pred.size):
         w[y_pred[i], y[i]] += 1
     ind = linear_assignment(w.max() - w)
     return (w[ind[0], ind[1]]).sum() / y_pred.size, w
 
-def buildNetwork(layers, activation="relu", dropout=0):
+def build_network(layers, activation="relu", dropout=0):
     '''
         function builds a network.
         Args:
@@ -89,6 +90,7 @@ def log_likelihood_samplesImean_sigma(samples, mu, logvar):
 
 
 class VaDE(nn.Module):
+    ''' class implements the VaDE model '''
     def __init__(self, input_dim=200, z_dim=10, n_centroids=10,
         encodeLayer=[500, 500,2000], decodeLayer=[2000, 500, 500],
         im_shape=(145, 145), one_by_delta_x=100, regularization=0.01,
@@ -105,8 +107,8 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # initialize encoder and decoder network
         #--------------------------------------------------------------------------------#
-        self.encoder = buildNetwork([input_dim] + encodeLayer)
-        self.decoder = buildNetwork([z_dim] + decodeLayer)
+        self.encoder = build_network([input_dim] + encodeLayer)
+        self.decoder = build_network([z_dim] + decodeLayer)
 
         #--------------------------------------------------------------------------------#
         # add output layers of encoder
@@ -310,6 +312,7 @@ class VaDE(nn.Module):
         return z, mu, logvar, mu_x, logvar_x
 
     def save_model(self, path):
+        ''' save current model parameters on disk '''
         torch.save(self.state_dict(), path)
 
     def load_model(self, path):
@@ -391,7 +394,7 @@ class VaDE(nn.Module):
         gamma_all = np.concatenate(gamma_all)
 
         acc = cluster_acc(y_pred, y, self.ignore_label)
-        print('Overall accuracy: {}'.format(acc[0]))
+        print(f'Overall accuracy: {acc[0]:.5f}')
 
         return valid_loss, z_all, y_pred, gamma_all
 
