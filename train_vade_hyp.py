@@ -184,10 +184,8 @@ def prepare_data(im, gt, args, seed_worker, generator):
     else:
         ds = HSIDataset(im, gt, None, args['device'])
 
-    # args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False)
     args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False,
                                     worker_init_fn=seed_worker, generator=generator)
-    # args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=0, pin_memory=False)
     args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=0, pin_memory=False)
     print('Initialized dataset and dataloader.')
 
@@ -356,9 +354,11 @@ def hyper_opt(args):
     time_stamp = f'{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}-{now.second}'
 
     if args['patches']:
-        exp_spec_path = f'ep{args["epochs"]}_ldim{args["latent_dim"]}_reg{str(args["regularizer"]).replace(".", "_")}_spat{int(args["spatial_coord"])}_patch{args["patch_size"]}'
+        exp_spec_path = f'ep{args["epochs"]}_ldim{args["latent_dim"]}_reg{str(args["regularizer"]).replace(".", "_")}' \
+                        f'_spat{int(args["spatial_coord"])}_patch{args["patch_size"]}'
     else:
-        exp_spec_path = f'ep{args["epochs"]}_ldim{args["latent_dim"]}_reg{str(args["regularizer"]).replace(".", "_")}_spat{int(args["spatial_coord"])}'
+        exp_spec_path = f'ep{args["epochs"]}_ldim{args["latent_dim"]}_reg{str(args["regularizer"]).replace(".", "_")}' \
+                        f'_spat{int(args["spatial_coord"])}'
     exp_dir = f'{args["final_directory"]}/{time_stamp}-{exp_spec_path}'
     if not os.path.exists(exp_dir):
         os.mkdir(exp_dir)

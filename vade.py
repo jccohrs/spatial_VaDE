@@ -16,19 +16,19 @@ from sklearn.mixture import GaussianMixture
 from msiplib.io import saveArrayAsNetCDF
 from msiplib.segmentation import create_segmentation_colormap
 
-def cluster_acc(Y_pred, Y, ignore_label=None):
+def cluster_acc(y_pred, y, ignore_label=None):
     ''' compute overall accuracy of clustering '''
     if ignore_label is not None:
-        index = Y!= ignore_label
-        Y = Y[index]
-        Y_pred = Y_pred[index]
-    assert Y_pred.size == Y.size
-    D = max(Y_pred.max(), Y.max()) + 1
+        index = y != ignore_label
+        y = y[index]
+        y_pred = y_pred[index]
+    assert y_pred.size == y.size
+    D = max(y_pred.max(), y.max()) + 1
     w = np.zeros((D, D), dtype=np.int64)
-    for i in range(Y_pred.size):
-        w[Y_pred[i], Y[i]] += 1
+    for i in range(y_pred.size):
+        w[y_pred[i], y[i]] += 1
     ind = linear_assignment(w.max() - w)
-    return (w[ind[0], ind[1]]).sum() / Y_pred.size, w
+    return (w[ind[0], ind[1]]).sum() / y_pred.size, w
 
 def buildNetwork(layers, activation="relu", dropout=0):
     '''
@@ -222,11 +222,11 @@ class VaDE(nn.Module):
 
     def get_gamma(self, z):
         ''' compute p(c | z) as approximation to q(c | x) '''
-        Z = z.unsqueeze(2)
+        z_t = z.unsqueeze(2)
 
         p_c_z = torch.exp(torch.log(softmax(self.prior_init)) \
             - torch.sum(0.5 * torch.log(2 * math.pi * torch.exp(self.log_var_init)) \
-            + (Z - self.mean_init)**2 / (2 * torch.exp(self.log_var_init)), dim=1)) + 1e-10 # NxK
+            + (z_t - self.mean_init)**2 / (2 * torch.exp(self.log_var_init)), dim=1)) + 1e-10 # NxK
 
         gamma = p_c_z / torch.sum(p_c_z, dim=1, keepdim=True)
         return gamma
@@ -352,10 +352,10 @@ class VaDE(nn.Module):
         ''' apply model with current weights to a dataset '''
         self.eval()
         valid_loss = 0.0
-        Y_pred = []
-        Y = []
-        Z = []
-        Gamma = []
+        y_pred = []
+        y = []
+        z_all = []
+        gamma_all = []
         for _, (inputs, labels) in enumerate(dataloader):
             inputs = Variable(inputs)
             if self.lambdas != 0:
@@ -368,7 +368,7 @@ class VaDE(nn.Module):
                 z, mu, logvar, mu_x, logvar_x = self.forward(inputs)
                 loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar)
 
-            Z.append(z.detach().cpu().numpy())
+            z_all.append(z.detach().cpu().numpy())
 
 
             valid_loss += loss.data.item() * len(inputs)
@@ -377,23 +377,23 @@ class VaDE(nn.Module):
             # compute gamma for whole evaluation batch
             #--------------------------------------------------------------------------------#
             gamma = self.get_gamma(z).detach()
-            Gamma.append(gamma.cpu().numpy())
+            gamma_all.append(gamma.cpu().numpy())
 
             #--------------------------------------------------------------------------------#
             # compute predicted labels by taking the argmax over gamma (q(c | z))
             #--------------------------------------------------------------------------------#
-            Y.append(labels.cpu().numpy())
-            Y_pred.append(torch.argmax(gamma, dim=1).cpu().numpy())
+            y.append(labels.cpu().numpy())
+            y_pred.append(torch.argmax(gamma, dim=1).cpu().numpy())
 
-        Y_pred = np.concatenate(Y_pred)
-        Y = np.concatenate(Y)
-        Z = np.concatenate(Z)
-        Gamma = np.concatenate(Gamma)
+        y_pred = np.concatenate(y_pred)
+        y = np.concatenate(y)
+        z_all = np.concatenate(z_all)
+        gamma_all = np.concatenate(gamma_all)
 
-        acc = cluster_acc(Y_pred, Y, self.ignore_label)
+        acc = cluster_acc(y_pred, y, self.ignore_label)
         print('Overall accuracy: {}'.format(acc[0]))
 
-        return valid_loss, Z, Y_pred, Gamma
+        return valid_loss, z_all, y_pred, gamma_all
 
 
     def fit(self, trainloader, validloader, lr=0.002, num_epochs=10,
@@ -410,8 +410,8 @@ class VaDE(nn.Module):
         self.eval()
         valid_loss = 0.0
         # TODO: Z and Y in torch on gpu?
-        Z = []
-        Y = []
+        z_all = []
+        y = []
         for _, (inputs, labels) in enumerate(validloader):
             inputs = Variable(inputs)
 
@@ -426,21 +426,21 @@ class VaDE(nn.Module):
                 loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar)
 
             # TODO: Necessary to have it in numpy on cpu?
-            Z.append(z.detach().cpu().numpy())
-            Y.append(labels.cpu().numpy())
+            z_all.append(z.detach().cpu().numpy())
+            y.append(labels.cpu().numpy())
 
             valid_loss += loss.data.item() * len(inputs)
 
         if visualize:
             # TODO: have computations on GPU also in torch? Also TSNE?
-            Y = np.concatenate(Y)
-            Z = np.concatenate(Z)
-            self.visualize_latent_space(Z, Y, epoch=-1)
+            y = np.concatenate(y)
+            z_all = np.concatenate(z_all)
+            self.visualize_latent_space(z_all, y, epoch=-1)
 
         #--------------------------------------------------------------------------------#
         # Valid loss of initialized weights computed over the whole dataset
         #--------------------------------------------------------------------------------#
-        print("#Epoch -1: Valid Loss: %.5f" % (valid_loss / len(validloader.dataset)))
+        print(f'#Epoch -1: Valid Loss: {(valid_loss / len(validloader.dataset)):.5f}')
 
         #--------------------------------------------------------------------------------#
         # train num_epochs
@@ -483,10 +483,10 @@ class VaDE(nn.Module):
             #--------------------------------------------------------------------------------#
             self.eval()
             valid_loss = 0.0
-            Y = []
-            Y_pred = []
-            Z = []
-            Gamma = []
+            y = []
+            y_pred = []
+            z_all = []
+            gamma_all = []
             for _, (inputs, labels) in enumerate(validloader):
                 inputs = Variable(inputs)
 
@@ -501,7 +501,7 @@ class VaDE(nn.Module):
                     loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar)
 
                 # TODO: Necessary to push on CPU?
-                Z.append(z.detach().cpu().numpy())
+                z_all.append(z.detach().cpu().numpy())
 
                 valid_loss += loss.data.item() * len(inputs)
 
@@ -509,33 +509,33 @@ class VaDE(nn.Module):
                 # compute gamma for whole evaluation batch
                 #--------------------------------------------------------------------------------#
                 gamma = self.get_gamma(z).detach()
-                Gamma.append(gamma.cpu().numpy())
+                gamma_all.append(gamma.cpu().numpy())
 
                 #--------------------------------------------------------------------------------#
                 # compute predicted labels by taking the argmax over gamma (q(c | z))
                 #--------------------------------------------------------------------------------#
                 # TODO: Can the computations be made with torch on GPU?
-                Y_pred.append(torch.argmax(gamma, dim=1).cpu().numpy())
-                Y.append(labels.cpu().numpy())
+                y_pred.append(torch.argmax(gamma, dim=1).cpu().numpy())
+                y.append(labels.cpu().numpy())
 
-            Y = np.concatenate(Y)
-            Y_pred = np.concatenate(Y_pred)
-            Z = np.concatenate(Z)
-            Gamma = np.concatenate(Gamma)
-            acc = cluster_acc(Y_pred, Y, self.ignore_label)
+            y = np.concatenate(y)
+            y_pred = np.concatenate(y_pred)
+            z_all = np.concatenate(z_all)
+            gamma_all = np.concatenate(gamma_all)
+            acc = cluster_acc(y_pred, y, self.ignore_label)
 
-            print("#Epoch %3d: lr: %.5f, Train Loss: %.5f, Valid Loss: %.5f, acc: %.5f" % (
-                epoch, epoch_lr, train_loss / len(trainloader.dataset), valid_loss / len(validloader.dataset), acc[0]))
+            print(f'#Epoch {epoch:3d}: lr: {epoch_lr:.5f}, Train Loss: {train_loss / len(trainloader.dataset):.5f}, ' \
+                  f'Valid Loss: {valid_loss / len(validloader.dataset):.5f}, acc: {acc[0]:.5f}')
 
             if visualize and (epoch % 50 == 0 or epoch == num_epochs - 1):
                 print(f'Plot current latent space after {epoch} epochs.')
-                self.visualize_latent_space(Z, Y, epoch=epoch)
+                self.visualize_latent_space(z_all, y, epoch=epoch)
 
             if epoch == num_epochs - 1:
-                saveArrayAsNetCDF(Gamma.reshape((self.im_shape[0], self.im_shape[1], Gamma.shape[-1])),
+                saveArrayAsNetCDF(gamma_all.reshape((self.im_shape[0], self.im_shape[1], gamma_all.shape[-1])),
                                   f'{self.directory}/gamma_epoch{epoch}_reg{self.lambdas}.nc')
 
-        return Y_pred
+        return y_pred
 
     def log_marginal_likelihood_estimate(self, x, num_samples):
         weight = torch.zeros(x.size(0))
