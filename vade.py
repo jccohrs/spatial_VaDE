@@ -499,7 +499,6 @@ class VaDE(nn.Module):
                     z, mu, logvar, mu_x, logvar_x = self.forward(inputs)
                     loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar)
 
-                # TODO: Necessary to push on CPU?
                 z_all.append(z.detach().cpu().numpy())
 
                 valid_loss += loss.data.item() * len(inputs)
