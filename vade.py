@@ -234,7 +234,7 @@ class VaDE(nn.Module):
         ''' compute p(c | z) as approximation to q(c | x) '''
         z_t = z.unsqueeze(2)
 
-        p_c_z = torch.exp(torch.log(softmax(self.prior_init)) \
+        p_c_z = torch.exp(torch.log(softmax(self.prior_init, dim=0)) \
             - torch.sum(0.5 * torch.log(2 * math.pi * torch.exp(self.log_var_init)) \
             + (z_t - self.mean_init)**2 / (2 * torch.exp(self.log_var_init)), dim=1)) + 1e-10 # NxK
 
@@ -279,7 +279,7 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # 3rd term in equation 9
         #--------------------------------------------------------------------------------#
-        logpc = -torch.sum(torch.log(softmax(self.prior_init)) * gamma, 1)
+        logpc = -torch.sum(torch.log(softmax(self.prior_init, dim=0)) * gamma, 1)
 
         #--------------------------------------------------------------------------------#
         # 4th term in equation 9
