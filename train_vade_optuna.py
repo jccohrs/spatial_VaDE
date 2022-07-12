@@ -1,8 +1,7 @@
 #pylint: disable=no-member
-''' script to train vade with hyperopt '''
+''' script to train vade with optuna '''
 
 import argparse
-from builtins import breakpoint
 import os
 import random
 import re
@@ -13,7 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-from hyperopt import Trials, fmin, hp, rand
 import optuna
 from optuna.samplers import TPESampler
 from functools import partial
