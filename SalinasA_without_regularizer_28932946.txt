@@ -1,0 +1,30 @@
+(OK) Loading python 3.9.6
+(!!) The SciPy Stack is available: http://www.scipy.org/stackspec.html
+ Built with GCC compilers.
+2022-07-28 20:29:15.072557: W tensorflow/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libcudart.so.11.0'; dlerror: libcudart.so.11.0: cannot open shared object file: No such file or directory; LD_LIBRARY_PATH: /usr/local_rwth/sw/python/3.9.6/x86_64/lib:/usr/local_rwth/sw/python/3.9.6/x86_64/extra/lib:/usr/local_rwth/sw/python/3.9.6/x86_64/extra/CBLAS:/opt/intel/impi/2018.4.274/compilers_and_libraries/linux/mpi/lib64:/opt/intel/impi/2018.4.274/compilers_and_libraries/linux/mpi/lib:/opt/intel/Compiler/19.0/1.144/rwthlnk/daal/lib/intel64_lin:/opt/intel/Compiler/19.0/1.144/rwthlnk/daal/lib/ia32_lin:/opt/intel/Compiler/19.0/1.144/rwthlnk/ipp/lib/intel64_lin:/opt/intel/Compiler/19.0/1.144/rwthlnk/ipp/lib/ia32_lin:/opt/intel/Compiler/19.0/1.144/rwthlnk/mkl/lib/intel64_lin:/opt/intel/Compiler/19.0/1.144/rwthlnk/mkl/lib/ia32_lin:/opt/intel/Compiler/19.0/1.144/rwthlnk/tbb/lib/intel64_lin/gcc4.7:/opt/intel/Compiler/19.0/1.144/rwthlnk/tbb/lib/ia32_lin/gcc4.7:/opt/intel/Compiler/19.0/1.144/rwthlnk/compiler/lib/intel64_lin:/opt/intel/Compiler/19.0/1.144/rwthlnk/compiler/lib/ia32_lin
+2022-07-28 20:29:15.072602: I tensorflow/stream_executor/cuda/cudart_stub.cc:29] Ignore above cudart dlerror if you do not have a GPU set up on your machine.
+RuntimeError: module compiled against API version 0xe but this version of numpy is 0xd
+ImportError: numpy.core.multiarray failed to import
+
+The above exception was the direct cause of the following exception:
+
+SystemError: <built-in method __contains__ of dict object at 0x2b4e612e77c0> returned a result with an error set
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "dcec.py", line 22, in <module>
+    from dataset_structures import DataLoaderShuffle, HyperspectralCube
+  File "/rwthfs/rz/cluster/home/jt925938/hiwi2/segmentation/vade_final/dataset_structures.py", line 13, in <module>
+    from keras.utils import to_categorical
+  File "/home/jt925938/anaconda3/lib/python3.8/site-packages/keras/__init__.py", line 21, in <module>
+    from tensorflow.python import tf2
+  File "/home/jt925938/anaconda3/lib/python3.8/site-packages/tensorflow/__init__.py", line 37, in <module>
+    from tensorflow.python.tools import module_util as _module_util
+  File "/home/jt925938/anaconda3/lib/python3.8/site-packages/tensorflow/python/__init__.py", line 37, in <module>
+    from tensorflow.python.eager import context
+  File "/home/jt925938/anaconda3/lib/python3.8/site-packages/tensorflow/python/eager/context.py", line 35, in <module>
+    from tensorflow.python.client import pywrap_tf_session
+  File "/home/jt925938/anaconda3/lib/python3.8/site-packages/tensorflow/python/client/pywrap_tf_session.py", line 19, in <module>
+    from tensorflow.python.client._pywrap_tf_session import *
+ImportError: initialization failed
