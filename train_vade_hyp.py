@@ -374,6 +374,8 @@ def hyper_opt(args):
 
         if args['spatial_coord']:
             print('Added spatial coordinates to spectra.')
+            print('Spatial coordinates are input into a second input layer. '\
+                  'Results of spectral and spatial input are added.')
 
         if args['patches']:
             print(f'Input patches of size {args["patch_size"]}.')
@@ -451,11 +453,11 @@ def main():
     # make argument compatible to hyperopt
     #------------------------------------------------------------------------------#
     args = parse_args()
-    lam_lower = 0
-    lam_upper = 0.025
+    # lam_lower = 0
+    # lam_upper = 0.1
     # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
-    args['regularizer'] = 0
-    max_evals = 1
+    args['regularizer'] = 0.005
+    max_evals = 2
 
     #------------------------------------------------------------------------------#
     # seed the randomness, reduce non-determinism
