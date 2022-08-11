@@ -23,8 +23,8 @@ from vade import VaDE
 
 from msiplib.image.manipulators import normalize_image
 from msiplib.io import saveArrayAsNetCDF, Tee
-from msiplib.io.segmentation import (save_gt_colored_segmentation,
-                                     visualize_correct_wrong_pixels)
+from msiplib.io.segmentation import (save_gt_colored_segmentation)
+                                     #,visualize_correct_wrong_pixels)
 from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
 
@@ -35,7 +35,7 @@ def parse_args():
                         help='learning rate for training (default: 0.0001)')
     parser.add_argument('--batch-size', type=int, default=100, metavar='N',
                         help='input batch size for training (default: 100)')
-    parser.add_argument('--epochs', type=int, default=500, metavar='N',
+    parser.add_argument('--epochs', type=int, default=1, metavar='N',
                         help='number of epochs to train (default: 500)')
     parser.add_argument('--pretrain', type=str, default="", metavar='N',
                         help='path to pretrained model')
@@ -208,8 +208,8 @@ def save_segmentation(exp_dir, exp_spec_path, seg, args):
     save_gt_colored_segmentation(f'{exp_dir}/{filename}_masked.png', seg, args['gt_file'],
                                 args['ignore_label'], False, None, False, True)
     # save wrongly and correctly classified pixels
-    visualize_correct_wrong_pixels(f'{exp_dir}/{filename}.png', seg, args['gt'], args['gt_file'],
-                                args['ignore_label'])
+    #visualize_correct_wrong_pixels(f'{exp_dir}/{filename}.png', seg, args['gt'], args['gt_file'],
+    #                           args['ignore_label'])
     # store found segmentation as netCDF file
     saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
 
@@ -487,12 +487,13 @@ def main():
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    args['image_file'] = 'SalinasA'
+    #args['image_file'] = 'SalinasA'
+    args['image_file'] = 'Salinas'
 
     #------------------------------------------------------------------------------#
     # Specify the features
     #------------------------------------------------------------------------------#
-    args['n_cl'] = 6
+    args['n_cl'] = 16
     args['visualize'] = False
     args['mnf_features'] = 16 #6
     args['latent_dim'] = 10
@@ -527,14 +528,18 @@ def main():
     #--------------------------------------------------------------------------------#
     data_path = f'$DATA_DIR/segmentation/{args["image_file"]}/{args["image_file"]}.nc'
     im, gt, _, args['gt_file'] = read_data(os.path.expandvars(data_path))
-
+    
+    
     # prepare dataset and dataloader for training and validation
     args = prepare_data(im, gt, args, seed_worker, g)
 
     # run hyperopt to do hyperparameter tuning
     trials = Trials()
+    #best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
+    #            rstate=np.random.default_rng(seed_hyp), trials=trials)
+
     best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
-                rstate=np.random.default_rng(seed_hyp), trials=trials)
+                rstate=np.random.RandomState(seed_hyp), trials=trials)
 
     with open(f'{final_directory}/hyperopt_best.txt', 'a', encoding='utf-8') as f:
         f.write(str(best))
