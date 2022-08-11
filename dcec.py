@@ -185,7 +185,7 @@ class DCEC(nn.Module):
                        .transpose()
                        .reshape(-1))
         last_mse = 0
-        breakpoint()
+        # # breakpoint()
         for epoch in range(epochs):
             data_loader.shuffle()
             for batch_x in data_loader:
@@ -367,7 +367,7 @@ if __name__ == '__main__':
     #--------------------------------------------------------------------------------#
     # read data from the source
     #--------------------------------------------------------------------------------#
-    #breakpoint()
+    ## breakpoint()
     args={}
     args["image_file"]="Salinas"
     data_path = f'$DATA_DIR/segmentation/{args["image_file"]}/{args["image_file"]}.nc'
@@ -387,7 +387,7 @@ if __name__ == '__main__':
     update_interval = int(samples_count / batch_size)
     iterations = int(update_interval * epochs) # This indicates the number of epochs that the clustering part of the autoencoder will be trained for
 
-    #breakpoint()
+    ## breakpoint()
     #dataset = HyperspectralCube(r"", im, # Path to .npy file or np.ndarray with [HEIGHT, WIDTH, BANDS] dimensions
     #                            neighbourhood_size=neighborhood_size,
      #                           device=device, bands=dataset_bands)
@@ -397,7 +397,7 @@ if __name__ == '__main__':
     dataset.standardize()
     dataset.convert_to_tensors(device=device)
     #dataset.convert_to_tensors()
-    breakpoint()
+    # breakpoint()
     # Train
     net = DCEC(input_dims=np.array([dataset_bands, neighborhood_size, neighborhood_size]), n_clusters=n_cl,
                kernel_shape=np.array([5, 3, 3]), latent_vector_size=latent_dim,
@@ -406,7 +406,7 @@ if __name__ == '__main__':
     #net = net.cuda(device=device)
     optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
     data_loader = DataLoaderShuffle(dataset, batch_size=batch_size)
-    breakpoint()
+    # breakpoint()
     net.train_model(data_loader, optimizer, epochs=epochs, iterations=iterations, gamma=0.1)
 
     # Predict

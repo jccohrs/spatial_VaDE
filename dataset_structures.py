@@ -10,7 +10,7 @@ from collections import Iterable
 import torch
 import numpy as np
 from typing import List
-from keras.utils import to_categorical
+from tensorflow.keras.utils import to_categorical
 
 from io_ import load_data
 
