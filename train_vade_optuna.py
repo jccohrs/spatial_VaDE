@@ -21,7 +21,7 @@ from spectral import calc_stats, mnf, noise_from_diffs
 from torch.utils.data import DataLoader, Dataset
 from vade_opt import VaDE
 
-from msiplib.image.manipulators import normalize_image
+from skimage.exposure import rescale_intensity
 from msiplib.io import saveArrayAsNetCDF, Tee
 from msiplib.io.segmentation import save_gt_colored_segmentation
 #from msiplib.io.segmentation import (save_gt_colored_segmentation,
@@ -135,7 +135,7 @@ def read_data(filename):
     #--------------------------------------------------------------------------------#
     # normalize image to have values between [0, 1]
     #--------------------------------------------------------------------------------#
-    inputimage = normalize_image(inputimage)
+    inputimage = rescale_intensity(inputimage, out_range=(0.0, 1.0))
 
     #--------------------------------------------------------------------------------#
     # if the image is grayscale, add a third dimension of size 1
@@ -352,7 +352,7 @@ def main():
         noise = noise_from_diffs(im, direction=noise_dir)
         mnfr = mnf(sig, noise)
         im = mnfr.reduce(im, num=args['mnf_features'])
-        args['im'] = normalize_image(im)
+        args['im'] = rescale_intensity(im, out_range=(0.0, 1.0))
         print('Finished denoising of data with MNF.')
     #------------------------------------------------------------------------------#
     # principal component analysis

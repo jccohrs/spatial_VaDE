@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms.functional import pad
 from vade import VaDE
 
-from msiplib.image.manipulators import normalize_image
+from skimage.exposure import rescale_intensity
 from msiplib.io import saveArrayAsNetCDF, Tee
 from msiplib.io.segmentation import (save_gt_colored_segmentation)
                                      #,visualize_correct_wrong_pixels)
@@ -51,7 +51,7 @@ def parse_args():
 def classify(output_path, image, weights, gt, n_cl, gt_file, ignore_label=None, add_spatial=False):
     ''' classify an image using a trained VaDE model '''
 
-    im = normalize_image(image)
+    im = rescale_intensity(image, out_range=(0.0, 1.0))
     args = {'spatial_coord': add_spatial}
     args['use_mnf'] = False
     args['use_pca'] = False
@@ -110,7 +110,7 @@ def prepare_data(im, gt, args, seed_worker, generator):
         noise = noise_from_diffs(im, direction=noise_dir)
         mnfr = mnf(sig, noise)
         im = mnfr.reduce(im, num=args['mnf_features'])
-        args['im'] = normalize_image(im)
+        args['im'] = rescale_intensity(im, out_range=(0.0, 1.0))
         print('Finished denoising of data with MNF.')
     #------------------------------------------------------------------------------#
     # principal component analysis
@@ -300,7 +300,7 @@ def read_data(filename):
     #--------------------------------------------------------------------------------#
     # normalize image to have values between [0, 1]
     #--------------------------------------------------------------------------------#
-    inputimage = normalize_image(inputimage)
+    inputimage = rescale_intensity(inputimage, out_range=(0.0, 1.0))
 
     #--------------------------------------------------------------------------------#
     # if the image is grayscale, add a third dimension of size 1
