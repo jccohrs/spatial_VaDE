@@ -35,7 +35,7 @@ def parse_args():
                         help='learning rate for training (default: 0.0001)')
     parser.add_argument('--batch-size', type=int, default=100, metavar='N',
                         help='input batch size for training (default: 100)')
-    parser.add_argument('--epochs', type=int, default=1, metavar='N',
+    parser.add_argument('--epochs', type=int, default=500, metavar='N',
                         help='number of epochs to train (default: 500)')
     parser.add_argument('--pretrain', type=str, default="", metavar='N',
                         help='path to pretrained model')
@@ -457,7 +457,7 @@ def main():
     # lam_upper = 0.1
     # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
     args['regularizer'] = 0.005
-    max_evals = 2
+    max_evals = 1
 
     #------------------------------------------------------------------------------#
     # seed the randomness, reduce non-determinism
@@ -487,8 +487,7 @@ def main():
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    #args['image_file'] = 'SalinasA'
-    args['image_file'] = 'Salinas'
+    args['image_file'] = 'IndianPines'
 
     #------------------------------------------------------------------------------#
     # Specify the features
@@ -538,8 +537,9 @@ def main():
     #best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
     #            rstate=np.random.default_rng(seed_hyp), trials=trials)
 
-    best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
-                rstate=np.random.RandomState(seed_hyp), trials=trials)
+    best = hyper_opt(args)
+    # best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
+    #             rstate=np.random.RandomState(seed_hyp), trials=trials)
 
     with open(f'{final_directory}/hyperopt_best.txt', 'a', encoding='utf-8') as f:
         f.write(str(best))
