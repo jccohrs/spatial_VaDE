@@ -445,6 +445,40 @@ def hyper_opt(args):
 
     return -score['overallAcc']
 
+def read_args(lr: float, batch_size: int, epochs: int, pretrain, regularizer: float, save: bool, image_file, n_cl: int, visualize: bool, mnf_features: int, latent_dim: int, ignore_label: int, patches: bool, patch_size: int, use_mnf: bool, use_pca: bool, spatial_coord: bool):
+    args = dict()
+    #------------------------------------------------------------------------------#
+    # Read the original parsing arguments
+    #------------------------------------------------------------------------------#
+    args['lr'] = lr
+    args['batch_size'] = batch_size
+    args['epochs'] = epochs
+    args['pretrain'] = ""
+    args['regularizer'] = regularizer
+    args['save'] = True
+
+    #------------------------------------------------------------------------------#
+    # Read the input image file
+    #------------------------------------------------------------------------------#
+    args['image_file'] = image_file
+
+    #------------------------------------------------------------------------------#
+    # Specify the features
+    #------------------------------------------------------------------------------#
+    args['n_cl'] = n_cl
+    args['visualize'] = visualize
+    args['mnf_features'] = mnf_features #6
+    args['latent_dim'] = latent_dim
+    args['ignore_label'] = ignore_label
+    args['patches'] = patches
+    args['patch_size'] = patch_size # only odd values
+    args['use_mnf'] = use_mnf
+    args['use_pca'] = use_pca
+    args['spatial_coord'] = spatial_coord
+    args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    return args
+
 
 def main():
     ''' main function '''
@@ -452,11 +486,10 @@ def main():
     #------------------------------------------------------------------------------#
     # make argument compatible to hyperopt
     #------------------------------------------------------------------------------#
-    args = parse_args()
+
     # lam_lower = 0
     # lam_upper = 0.1
     # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
-    args['regularizer'] = 0.005
     max_evals = 1
 
     #------------------------------------------------------------------------------#
@@ -484,25 +517,7 @@ def main():
         np.random.seed(worker_seed)
         random.seed(worker_seed)
 
-    #------------------------------------------------------------------------------#
-    # Read the input image file
-    #------------------------------------------------------------------------------#
-    args['image_file'] = 'IndianPines'
-
-    #------------------------------------------------------------------------------#
-    # Specify the features
-    #------------------------------------------------------------------------------#
-    args['n_cl'] = 16
-    args['visualize'] = False
-    args['mnf_features'] = 16 #6
-    args['latent_dim'] = 10
-    args['ignore_label'] = 0
-    args['patches'] = False
-    args['patch_size'] = 5 # only odd values
-    args['use_mnf'] = False
-    args['use_pca'] = False
-    args['spatial_coord'] = True
-    args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
+    args = read_args(0.0001, 100, 500, "", 0.005, True, 'IndianPines', 16, False, 8, 10, 0, False, 5, True, False, True)
 
     #--------------------------------------------------------------------------------#
     # check and create a folder to store all the data and figure
