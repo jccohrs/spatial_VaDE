@@ -28,25 +28,6 @@ from msiplib.io.segmentation import (save_gt_colored_segmentation)
 from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
 
-def parse_args():
-    ''' function to parse arguments '''
-    parser = argparse.ArgumentParser(description='VaDE: Variational Deep Embedding')
-    parser.add_argument('--lr', type=float, default=0.0001, metavar='N',
-                        help='learning rate for training (default: 0.0001)')
-    parser.add_argument('--batch-size', type=int, default=100, metavar='N',
-                        help='input batch size for training (default: 100)')
-    parser.add_argument('--epochs', type=int, default=500, metavar='N',
-                        help='number of epochs to train (default: 500)')
-    parser.add_argument('--pretrain', type=str, default="", metavar='N',
-                        help='path to pretrained model')
-    parser.add_argument('--regularizer',type=float, default=0.01, metavar='N',
-                        help='value for reularization')
-    parser.add_argument('--save', type=bool, default=True,
-                        help='If true, save founds weights after training.')
-    args = parser.parse_args()
-
-    return vars(args)
-
 
 def classify(output_path, image, weights, gt, n_cl, gt_file, ignore_label=None, add_spatial=False):
     ''' classify an image using a trained VaDE model '''
@@ -445,36 +426,41 @@ def hyper_opt(args):
 
     return -score['overallAcc']
 
+
 def read_args(lr: float, batch_size: int, epochs: int, pretrain, regularizer: float, save: bool, image_file, n_cl: int, visualize: bool, mnf_features: int, latent_dim: int, ignore_label: int, patches: bool, patch_size: int, use_mnf: bool, use_pca: bool, spatial_coord: bool):
     args = dict()
     #------------------------------------------------------------------------------#
     # Read the original parsing arguments
     #------------------------------------------------------------------------------#
-    args['lr'] = lr
-    args['batch_size'] = batch_size
-    args['epochs'] = epochs
-    args['pretrain'] = ""
-    args['regularizer'] = regularizer
+    args['lr'] = 0.0001
+    args['batch_size'] = 100
+    args['epochs'] = 500
+    args['pretrain'] = "" # TODO: Should become a boolean
+    args['regularizer'] = 0.01
     args['save'] = True
 
     #------------------------------------------------------------------------------#
     # Read the input image file
     #------------------------------------------------------------------------------#
-    args['image_file'] = image_file
+    args['image_file'] = 'IndianPines'
+    args['n_cl'] = 16
+    args['mnf_features'] = 6
 
     #------------------------------------------------------------------------------#
     # Specify the features
     #------------------------------------------------------------------------------#
-    args['n_cl'] = n_cl
-    args['visualize'] = visualize
-    args['mnf_features'] = mnf_features #6
-    args['latent_dim'] = latent_dim
-    args['ignore_label'] = ignore_label
-    args['patches'] = patches
-    args['patch_size'] = patch_size # only odd values
-    args['use_mnf'] = use_mnf
-    args['use_pca'] = use_pca
-    args['spatial_coord'] = spatial_coord
+    args['visualize'] = False
+    args['latent_dim'] = 10
+    args['ignore_label'] = 0
+    args['patches'] = False
+    args['patch_size'] = 5 # only odd values
+    args['use_mnf'] = False
+    args['use_pca'] = False
+    args['spatial_coord'] = False
+
+    #------------------------------------------------------------------------------#
+    # Further arguments
+    #------------------------------------------------------------------------------#
     args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     return args
