@@ -14,6 +14,7 @@ def hyper_tuning_SA(trial):
     ''' function performing hyperparameter tuning '''
     image = 'Salinas'
     args = {
+        # TODO: change it to create dictionary for VaDE arguments
         'k': 16,
         'reg_par': trial.suggest_float('reg_par', 0.05, 0.25),
         'ind_eps': trial.suggest_float('ind_eps', 0.1, 0.15),
