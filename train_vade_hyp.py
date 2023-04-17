@@ -1,7 +1,6 @@
 #pylint: disable=no-member
 ''' script to train vade with hyperopt '''
 
-import argparse
 import os
 import random
 import re
@@ -27,6 +26,45 @@ from msiplib.io.segmentation import (save_gt_colored_segmentation)
                                      #,visualize_correct_wrong_pixels)
 from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
+
+
+def read_args():
+    args = dict()
+    #------------------------------------------------------------------------------#
+    # Read the original parsing arguments
+    #------------------------------------------------------------------------------#
+    args['lr'] = 0.0001
+    args['batch_size'] = 100
+    args['epochs'] = 500
+    args['pretrain'] = "" # TODO: Should become a boolean
+    args['regularizer'] = 0.01
+    args['save'] = True
+
+    #------------------------------------------------------------------------------#
+    # Read the input image file
+    #------------------------------------------------------------------------------#
+    args['image_file'] = 'IndianPines'
+    args['n_cl'] = 16
+    args['mnf_features'] = 6
+
+    #------------------------------------------------------------------------------#
+    # Specify the features
+    #------------------------------------------------------------------------------#
+    args['visualize'] = False
+    args['latent_dim'] = 10
+    args['ignore_label'] = 0
+    args['patches'] = False
+    args['patch_size'] = 5 # only odd values
+    args['use_mnf'] = False
+    args['use_pca'] = False
+    args['spatial_coord'] = False
+
+    #------------------------------------------------------------------------------#
+    # Further arguments
+    #------------------------------------------------------------------------------#
+    args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    return args
 
 
 def classify(output_path, image, weights, gt, n_cl, gt_file, ignore_label=None, add_spatial=False):
@@ -101,7 +139,7 @@ def prepare_data(im, gt, args, seed_worker, generator):
         data_flat = im.reshape(im.shape[0] * im.shape[1], -1)
         pca = PCA(n_components=0.9999)
         data_pca = pca.fit_transform(data_flat)
-        im = data_pca.reshape(im.shape[0], im.shape[1], data_pca.shape[1])
+        args['im'] = data_pca.reshape(im.shape[0], im.shape[1], data_pca.shape[1])
         print('Finished dimenionality reduction of data with PCA')
 
     args['im_shape'] = im.shape
@@ -427,55 +465,13 @@ def hyper_opt(args):
     return -score['overallAcc']
 
 
-def read_args(lr: float, batch_size: int, epochs: int, pretrain, regularizer: float, save: bool, image_file, n_cl: int, visualize: bool, mnf_features: int, latent_dim: int, ignore_label: int, patches: bool, patch_size: int, use_mnf: bool, use_pca: bool, spatial_coord: bool):
-    args = dict()
-    #------------------------------------------------------------------------------#
-    # Read the original parsing arguments
-    #------------------------------------------------------------------------------#
-    args['lr'] = 0.0001
-    args['batch_size'] = 100
-    args['epochs'] = 500
-    args['pretrain'] = "" # TODO: Should become a boolean
-    args['regularizer'] = 0.01
-    args['save'] = True
-
-    #------------------------------------------------------------------------------#
-    # Read the input image file
-    #------------------------------------------------------------------------------#
-    args['image_file'] = 'IndianPines'
-    args['n_cl'] = 16
-    args['mnf_features'] = 6
-
-    #------------------------------------------------------------------------------#
-    # Specify the features
-    #------------------------------------------------------------------------------#
-    args['visualize'] = False
-    args['latent_dim'] = 10
-    args['ignore_label'] = 0
-    args['patches'] = False
-    args['patch_size'] = 5 # only odd values
-    args['use_mnf'] = False
-    args['use_pca'] = False
-    args['spatial_coord'] = False
-
-    #------------------------------------------------------------------------------#
-    # Further arguments
-    #------------------------------------------------------------------------------#
-    args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-    return args
-
-
-def main():
+def train_vade(args):
     ''' main function '''
     # TODO: total variation plus patches not implemented yet!
     #------------------------------------------------------------------------------#
     # make argument compatible to hyperopt
     #------------------------------------------------------------------------------#
 
-    # lam_lower = 0
-    # lam_upper = 0.1
-    # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
     max_evals = 1
 
     #------------------------------------------------------------------------------#
@@ -503,8 +499,6 @@ def main():
         np.random.seed(worker_seed)
         random.seed(worker_seed)
 
-    args = read_args(0.0001, 100, 500, "", 0.005, True, 'IndianPines', 16, False, 8, 10, 0, False, 5, True, False, True)
-
     #--------------------------------------------------------------------------------#
     # check and create a folder to store all the data and figure
     #--------------------------------------------------------------------------------#
@@ -528,8 +522,7 @@ def main():
     #--------------------------------------------------------------------------------#
     data_path = f'$DATA_DIR/segmentation/{args["image_file"]}/{args["image_file"]}.nc'
     im, gt, _, args['gt_file'] = read_data(os.path.expandvars(data_path))
-    
-    
+
     # prepare dataset and dataloader for training and validation
     args = prepare_data(im, gt, args, seed_worker, g)
 
@@ -582,6 +575,15 @@ def main():
             ax[i].set(xlabel=df.columns[i], ylabel='OA')
 
     fig.savefig(f'{final_directory}/lambda_vs_OA.png')
+
+def main():
+    """ main function """
+
+    # parse arguments from command line and config file
+    args = read_args()
+
+    # call MS segmentation function with given hyperparameters
+    train_vade(args)
 
 if __name__ == "__main__":
     main()
