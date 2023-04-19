@@ -8,6 +8,7 @@ import os
 import random
 import re
 import time
+import yaml
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -31,10 +32,16 @@ from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
 
 
-def read_args():
+def read_args(isYaml=True):
     # TODO: the goal is to have the choice whether you want to provide a yaml file with a configuration
     # or specify the configuration in a similar way as below or in the file VaDE_optuna.py.
+    # IMPLEMENTED
     args = dict()
+
+    if isYaml is True:
+        with open('args.yaml', 'r') as file:
+            args = yaml.load(file, Loader=yaml.FullLoader)
+        return args
     #------------------------------------------------------------------------------#
     # Read the original parsing arguments
     #------------------------------------------------------------------------------#
@@ -426,6 +433,9 @@ def train_vade(args):
     # TODO: total variation plus patches not implemented yet!
 
     # TODO: from the args dictionary create a yaml file that is copied to the output folder.
+    # IMPLEMENTATION
+    with open('${OUTPUT_DIR}/train_vade_args.yaml', 'w') as file:
+        yaml.dump(args, file)
     
     # TODO: remove next lines until "max_evals = 1" as this is only needed for hyperopt. script should become independent of hyperopt. See other TODOs as well.
     #------------------------------------------------------------------------------#

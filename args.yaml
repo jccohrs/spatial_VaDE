@@ -1,0 +1,18 @@
+lr: 0.0001
+batch_size: 100
+epochs: 500
+pretrain: false
+regularizer: 0.01
+save: true
+image_file: IndianPines
+n_cl: 16
+mnf_features: 6
+visualize: false
+latent_dim: 10
+ignore_label: 0
+patches: false
+patch_size: 5
+use_mnf: false
+use_pca: false
+spatial_coord: false
+device: cuda if torch.cuda.is_available() else cpu
