@@ -1,14 +1,13 @@
 #pylint: disable=no-member
 ''' script to train vade with hyperopt '''
 
-# TODO: script should be independent of any hyperparameter optimization framework
-
 # TODO: remove unnecessary imports
 import os
 import random
 import re
 import time
 import yaml
+import argparse
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -31,50 +30,20 @@ from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
 
 
-def read_args(isYaml=True):
-    # TODO: the goal is to have the choice whether you want to provide a yaml file with a configuration
-    # or specify the configuration in a similar way as below or in the file VaDE_optuna.py.
-    # IMPLEMENTED
+def read_args():
     args = dict()
+    
+    parser = argparse.ArgumentParser(description='Args parsing from a specified path')
+    parser.add_argument('-f', '--file', type=str, help='Path to .yaml file')
+    cmd_args = parser.parse_args()
 
-    if isYaml is True:
+    if cmd_args.file is None:
         with open('args.yaml', 'r') as file:
             args = yaml.load(file, Loader=yaml.FullLoader)
         return args
-    #------------------------------------------------------------------------------#
-    # Read the original parsing arguments
-    #------------------------------------------------------------------------------#
-    args['lr'] = 0.0001
-    args['batch_size'] = 100
-    args['epochs'] = 500
-    args['pretrain'] = "" # TODO: Should become a boolean
-    args['regularizer'] = 0.01
-    args['save'] = True
-
-    #------------------------------------------------------------------------------#
-    # Read the input image file
-    #------------------------------------------------------------------------------#
-    args['image_file'] = 'IndianPines'
-    args['n_cl'] = 16
-    args['mnf_features'] = 6
-
-    #------------------------------------------------------------------------------#
-    # Specify the features
-    #------------------------------------------------------------------------------#
-    args['visualize'] = False
-    args['latent_dim'] = 10
-    args['ignore_label'] = 0
-    args['patches'] = False
-    args['patch_size'] = 5 # only odd values
-    args['use_mnf'] = False
-    args['use_pca'] = False
-    args['spatial_coord'] = False
-
-    #------------------------------------------------------------------------------#
-    # Further arguments
-    #------------------------------------------------------------------------------#
-    args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
-
+    
+    with open(cmd_args.file, 'r') as file:
+        args = yaml.load(file, Loader=yaml.FullLoader)
     return args
 
 
@@ -333,15 +302,7 @@ class HSIDataset(Dataset):
 
 def train_vade(args):
     ''' main function '''
-    # TODO: total variation plus patches not implemented yet!
-
-    # TODO: from the args dictionary create a yaml file that is copied to the output folder.
-    # IMPLEMENTATION
-    with open('${OUTPUT_DIR}/train_vade_args.yaml', 'w') as file:
-        yaml.dump(args, file)
-    
-    # TODO: remove next lines until "max_evals = 1" as this is only needed for hyperopt. script should become independent of hyperopt. See other TODOs as well.
-    
+    # TODO: total variation plus patches not implemented yet!    
 
     #------------------------------------------------------------------------------#
     # seed the randomness, reduce non-determinism
@@ -387,6 +348,8 @@ def train_vade(args):
     args['final_directory'] = final_directory
 
     # create yaml file from arguments
+    with open(args['final_directory'], 'w') as file:
+        yaml.dump(args, file)
 
     #--------------------------------------------------------------------------------#
     # read data from the source
@@ -498,6 +461,7 @@ def main():
     args = read_args()
 
     # call MS segmentation function with given hyperparameters
+    
     train_vade(args)
 
 if __name__ == "__main__":

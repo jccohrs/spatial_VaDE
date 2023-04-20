@@ -6,53 +6,17 @@ import os
 import optuna
 import yaml
 # from numpy import linspace
+import argparse
+from train_vade import read_args
 from optuna.trial import TrialState
 from yaml.loader import SafeLoader
 from train_vade import train_vade
 
 def hyper_tuning_SA(trial):
     ''' function performing hyperparameter tuning '''
-    image = 'Salinas'
-    args = {
-        # TODO: change it to create dictionary for VaDE arguments
-        'k': 16,
-        'reg_par': trial.suggest_float('reg_par', 0.05, 0.25),
-        'ind_eps': trial.suggest_float('ind_eps', 0.1, 0.15),
-        'reduce_dimensionality': True,
-        'n_features': 7,
-        'ind_func': 'non-squared-anisotropic-eps-inverse',
-        'config_path': None,
-        'filename': os.path.expandvars('${DATA_DIR}') + f'/segmentation/Salinas/{image}.nc',
-        'gt_file': os.path.expandvars('${DATA_DIR}') + f'/segmentation/Salinas/{image}_gt.png',
-        'irreg': False,
-        'r': 1,
-        'irreg_eps': 1,
-        'kernel': 'direct-summation',
-        'ind_params': [20],
-        'convexification': 'strongly-conv',
-        'pdhgtype': 2,
-        'precision': 'float',
-        'max_iter': trial.suggest_int('pdhg_it', 10, 2000, 10),
-        'outer_iter': 20,
-        'stop_eps': 1e-06,
-        'outer_stop_eps': 1e-06,
-        'band_selection': 'full',
-        'band_select_param': 0.0001,
-        'dim_red_method': 'mnf',
-        'init': 'kmeans',
-        'reduce_dim_init': False,
-        'means': 'arithmetic',
-        'variances': 'sdm',
-        'components': 'pca',
-        'trim_proportion': 0.5,
-        'seed': 42,
-        'ignore_label': 0,
-        'ignore_pixels': False,
-        'ignore_pixels_data_term': False,
-        'solve_empty_segment': False,
-        'save_intermediate_segs': False,
-        'use_gpu': True
-    }
+    args = read_args()  
+    ## Example overwrite for hyperparameter fields
+    ## args['reg_par'] = trial.suggest_float('reg_par', 0.05, 0.25)
 
     return train_vade(args)
 
