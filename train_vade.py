@@ -460,8 +460,7 @@ def main():
     # parse arguments from command line and config file
     args = read_args()
 
-    # call MS segmentation function with given hyperparameters
-    
+    # train VaDE with given hyperparameters
     train_vade(args)
 
 if __name__ == "__main__":
