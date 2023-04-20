@@ -15,7 +15,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-from hyperopt import Trials, fmin, hp, rand
 from netCDF4 import Dataset as ncDataset
 from sklearn.decomposition import PCA
 from spectral import calc_stats, mnf, noise_from_diffs
@@ -331,8 +330,73 @@ class HSIDataset(Dataset):
         return self.data.shape[0]
 
 
-def hyper_opt(args):
-    ''' optimize over regularization parameter using hyperopt '''
+
+def train_vade(args):
+    ''' main function '''
+    # TODO: total variation plus patches not implemented yet!
+
+    # TODO: from the args dictionary create a yaml file that is copied to the output folder.
+    # IMPLEMENTATION
+    with open('${OUTPUT_DIR}/train_vade_args.yaml', 'w') as file:
+        yaml.dump(args, file)
+    
+    # TODO: remove next lines until "max_evals = 1" as this is only needed for hyperopt. script should become independent of hyperopt. See other TODOs as well.
+    
+
+    #------------------------------------------------------------------------------#
+    # seed the randomness, reduce non-determinism
+    #------------------------------------------------------------------------------#
+    seed = 2021
+    random.seed(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    seed_hyp = seed
+    g = torch.Generator()
+    g.manual_seed(seed)
+    os.environ["CUBLAS_WORKSPACE_CONFIG"]=":4096:8"
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    torch.use_deterministic_algorithms(True)
+
+    # determinism for dataloader
+    def seed_worker(worker_id): # pylint:disable=unused-argument
+        # torch.initial_seed() returns the initial seed for generating random numbers.
+        # if torch.manual_seed(val) is used before, torch.initial_seed() returns val.
+        worker_seed = torch.initial_seed() % 2**32
+
+        # seed of random and numpy already set above
+        np.random.seed(worker_seed)
+        random.seed(worker_seed)
+
+    #--------------------------------------------------------------------------------#
+    # check and create a folder to store all the data and figure
+    #--------------------------------------------------------------------------------#
+
+    directory =f'{args["image_file"]}'
+    if args['patches'] and not args['regularizer'] == 0:
+        current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade/patch-tv')
+    elif args['patches']:
+        current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade/patch')
+    elif not args['regularizer'] == 0:
+        current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade/tv')
+    else:
+        current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade/pure')
+    final_directory = os.path.join(current_directory+'/', directory)
+    if not os.path.exists(final_directory):
+        os.makedirs(final_directory)
+    args['final_directory'] = final_directory
+
+    # create yaml file from arguments
+
+    #--------------------------------------------------------------------------------#
+    # read data from the source
+    #--------------------------------------------------------------------------------#
+    data_path = f'$DATA_DIR/segmentation/{args["image_file"]}/{args["image_file"]}.nc'
+    im, gt, _, args['gt_file'] = read_data(os.path.expandvars(data_path))
+
+    # prepare dataset and dataloader for training and validation
+    args = prepare_data(im, gt, args, seed_worker, g)
+    
     now = datetime.now()
     time_stamp = f'{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}-{now.second}'
 
@@ -425,129 +489,7 @@ def hyper_opt(args):
     df_log.to_csv(f'{exp_dir}/exp_stats.csv', sep=',', header=True, index=False)
     plot_stats(f'{exp_dir}/plot_stats', df_log)
 
-    return -score['overallAcc']
-
-
-def train_vade(args):
-    ''' main function '''
-    # TODO: total variation plus patches not implemented yet!
-
-    # TODO: from the args dictionary create a yaml file that is copied to the output folder.
-    # IMPLEMENTATION
-    with open('${OUTPUT_DIR}/train_vade_args.yaml', 'w') as file:
-        yaml.dump(args, file)
-    
-    # TODO: remove next lines until "max_evals = 1" as this is only needed for hyperopt. script should become independent of hyperopt. See other TODOs as well.
-    #------------------------------------------------------------------------------#
-    # make argument compatible to hyperopt
-    #------------------------------------------------------------------------------#
-
-    max_evals = 1
-
-    #------------------------------------------------------------------------------#
-    # seed the randomness, reduce non-determinism
-    #------------------------------------------------------------------------------#
-    seed = 2021
-    random.seed(seed)
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    seed_hyp = seed
-    g = torch.Generator()
-    g.manual_seed(seed)
-    os.environ["CUBLAS_WORKSPACE_CONFIG"]=":4096:8"
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
-    torch.use_deterministic_algorithms(True)
-
-    # determinism for dataloader
-    def seed_worker(worker_id): # pylint:disable=unused-argument
-        # torch.initial_seed() returns the initial seed for generating random numbers.
-        # if torch.manual_seed(val) is used before, torch.initial_seed() returns val.
-        worker_seed = torch.initial_seed() % 2**32
-
-        # seed of random and numpy already set above
-        np.random.seed(worker_seed)
-        random.seed(worker_seed)
-
-    #--------------------------------------------------------------------------------#
-    # check and create a folder to store all the data and figure
-    #--------------------------------------------------------------------------------#
-
-    directory =f'{args["image_file"]}'
-    if args['patches'] and not args['regularizer'] == 0:
-        current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade/patch-tv')
-    elif args['patches']:
-        current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade/patch')
-    elif not args['regularizer'] == 0:
-        current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade/tv')
-    else:
-        current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade/pure')
-    final_directory = os.path.join(current_directory+'/', directory)
-    if not os.path.exists(final_directory):
-        os.makedirs(final_directory)
-    args['final_directory'] = final_directory
-
-    #--------------------------------------------------------------------------------#
-    # read data from the source
-    #--------------------------------------------------------------------------------#
-    data_path = f'$DATA_DIR/segmentation/{args["image_file"]}/{args["image_file"]}.nc'
-    im, gt, _, args['gt_file'] = read_data(os.path.expandvars(data_path))
-
-    # prepare dataset and dataloader for training and validation
-    args = prepare_data(im, gt, args, seed_worker, g)
-
-    # TODO: part using hyperopt should be removed. Move code from hyper_opt function here
-    # such that with the args dictionary and the data as preprocessed above training is run
-
-    # run hyperopt to do hyperparameter tuning
-    trials = Trials()
-    #best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
-    #            rstate=np.random.default_rng(seed_hyp), trials=trials)
-
-    best = hyper_opt(args)
-    # best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
-    #             rstate=np.random.RandomState(seed_hyp), trials=trials)
-
-    with open(f'{final_directory}/hyperopt_best.txt', 'a', encoding='utf-8') as f:
-        f.write(str(best))
-
-    df = []
-    if type(args['regularizer']) is not type(hp.uniform('dummy', 0, 1)):
-        # handle case when lambda is set to a fixed value
-        df_dict = {'regularizer': args['regularizer']}
-        df_dict['loss']= -trials.results[0]['loss']
-        df.append(df_dict)
-    else:
-        for it in range(max_evals):
-            df_dict = {}
-            for key, value in trials.vals.items():
-                df_dict[key] = value[it]
-            df_dict['loss']= -trials.results[it]['loss']
-            df.append(df_dict)
-
-    df = pd.DataFrame(df)
-
-    # append results of hyperopt run to csv file
-    output_hyperopt = f'{final_directory}/hyp_{args["image_file"]}.txt'
-    if os.path.exists(output_hyperopt):
-        # if file already exists, append to it
-        df.to_csv(output_hyperopt, sep=" ", index=False, mode='a', header=False)
-    else:
-        # it file does not exist, create a new one
-        df.to_csv(output_hyperopt, sep=" ", index=False, mode='w', header=True)
-
-    # read the full hyperopt results file and update the plot
-    df = pd.read_csv(output_hyperopt, sep=' ', header=0)
-    fig, ax = plt.subplots(len(df.columns) - 1)
-    for i in range(len(df.columns) - 1):
-        if len(df.columns) - 1 == 1:
-            ax.scatter(df[df.columns[i]], df['loss'])
-            ax.set(xlabel=df.columns[i], ylabel='OA')
-        else:
-            ax[i].scatter(df[df.columns[i]], df['loss'])
-            ax[i].set(xlabel=df.columns[i], ylabel='OA')
-
-    fig.savefig(f'{final_directory}/lambda_vs_OA.png')
+    return score['overallAcc']
 
 def main():
     """ main function """
