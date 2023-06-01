@@ -319,6 +319,9 @@ def train_vade(args):
     torch.backends.cudnn.deterministic = True
     torch.use_deterministic_algorithms(True)
 
+    # use cuda if available
+    args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     # determinism for dataloader
     def seed_worker(worker_id): # pylint:disable=unused-argument
         # torch.initial_seed() returns the initial seed for generating random numbers.
@@ -348,7 +351,7 @@ def train_vade(args):
     args['final_directory'] = final_directory
 
     # create yaml file from arguments
-    with open(args['final_directory'], 'w') as file:
+    with open(f'{args["final_directory"]}/args.yaml', 'w') as file:
         yaml.dump(args, file)
 
     #--------------------------------------------------------------------------------#
@@ -405,6 +408,7 @@ def train_vade(args):
                 one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
                 directory=exp_dir, ignore_label=args['ignore_label'], spatial=args['spatial_coord'])
         print('Initialized VaDE model.')
+        
         vade.to(args['device'])
         print(f'Pushed model to {args["device"]}.')
 
