@@ -40,10 +40,12 @@ def read_args():
     if cmd_args.file is None:
         with open('args.yaml', 'r') as file:
             args = yaml.load(file, Loader=yaml.FullLoader)
+            args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
         return args
     
     with open(cmd_args.file, 'r') as file:
         args = yaml.load(file, Loader=yaml.FullLoader)
+        args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
     return args
 
 
