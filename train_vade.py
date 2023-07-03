@@ -17,10 +17,14 @@ import torch
 from netCDF4 import Dataset as ncDataset
 from sklearn.decomposition import PCA
 from spectral import calc_stats, mnf, noise_from_diffs
+from torch import nn
+from torch import optim
 from torch.nn.functional import unfold
 from torch.utils.data import DataLoader, Dataset
+from torch.autograd import Variable
 from torchvision.transforms.functional import pad
 from vade import VaDE
+from prevade import PreVade
 
 from skimage.exposure import rescale_intensity
 from msiplib.io import saveArrayAsNetCDF, Tee
@@ -29,6 +33,20 @@ from msiplib.io.segmentation import (save_gt_colored_segmentation)
 from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
 
+#------------------------------------------------------------------------------#
+# seed the randomness, reduce non-determinism
+#------------------------------------------------------------------------------#
+seed = 2021
+random.seed(seed)
+torch.manual_seed(seed)
+np.random.seed(seed)
+seed_hyp = seed
+g = torch.Generator()
+g.manual_seed(seed)
+os.environ["CUBLAS_WORKSPACE_CONFIG"]=":4096:8"
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
+torch.use_deterministic_algorithms(True) 
 
 def read_args():
     args = dict()
@@ -40,10 +58,12 @@ def read_args():
     if cmd_args.file is None:
         with open('args.yaml', 'r') as file:
             args = yaml.load(file, Loader=yaml.FullLoader)
+            args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
         return args
     
     with open(cmd_args.file, 'r') as file:
         args = yaml.load(file, Loader=yaml.FullLoader)
+        args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
     return args
 
 
@@ -298,30 +318,62 @@ class HSIDataset(Dataset):
     def __len__(self):
         return self.data.shape[0]
 
+def train_prevade(args):
+    #### Read hyperspectral data
+    def seed_worker(worker_id):
+        worker_seed = torch.initial_seed() % 2**32
+        np.random.seed(worker_seed)
+        random.seed(worker_seed)
 
+    data_path = f'$DATA_DIR/segmentation/{args["image_file"]}/{args["image_file"]}.nc'
+    im, gt, _, args['gt_file'] = read_data(os.path.expandvars(data_path))
 
-def train_vade(args):
+    hyperspectral_data = HSIDataset(im, gt, None, args['device'])
+    dataloader = DataLoader(hyperspectral_data, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False,
+                                        worker_init_fn=seed_worker, generator=g)
+    args['im'], args['gt'], args['data_dim'], args['im_shape'] = im, gt, im.shape[2], im.shape
+    
+    ## Fetch relevant hyperparameters
+    lr = args['lr']
+    num_epochs = args['epochs_pretrain']
+
+    ## Initialize an instance of autoencoder
+    prevade = PreVade(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
+                    encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1])
+    prevade.to(args['device'])
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, prevade.parameters()), lr=lr)
+    loss_fn = nn.MSELoss()
+
+    ## Training Loop
+    print(f'Starting a pretraining loop for {num_epochs} epochs')
+    for epoch in range(num_epochs):
+        train_loss = 0
+        ## Loop through our batches of data
+        for _, (inputs, _) in enumerate(dataloader):
+            inputs = Variable(inputs)
+            # 1. Forward pass
+            z, mu_x = prevade.forward(inputs)
+            # 2. Calculate the loss 
+            loss = loss_fn(mu_x, inputs)
+            train_loss += loss.data.item() * len(inputs)
+            # 3. Optimize the zero-grad
+            optimizer.zero_grad()
+            # 4. Loss backward
+            loss.backward()
+            # 5. Optimize step
+            optimizer.step()
+
+        print(f'#Epoch {epoch:3d}: lr: {lr}, Train Loss: {train_loss / len(dataloader.dataset):.5f}, ')
+    
+    ## Save Model
+    pretrain_filename = f'pretrain_ep{num_epochs}_lr{lr}.pt'
+    save_location = './' + pretrain_filename
+    prevade.save_model(save_location)
+    return save_location
+
+def train_vade(args, pretrain_location = None):
     ''' main function '''
     # TODO: total variation plus patches not implemented yet!    
-
-    #------------------------------------------------------------------------------#
-    # seed the randomness, reduce non-determinism
-    #------------------------------------------------------------------------------#
-    seed = 2021
-    random.seed(seed)
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    seed_hyp = seed
-    g = torch.Generator()
-    g.manual_seed(seed)
-    os.environ["CUBLAS_WORKSPACE_CONFIG"]=":4096:8"
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
-    torch.use_deterministic_algorithms(True)
-
-    # use cuda if available
-    args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
-
     # determinism for dataloader
     def seed_worker(worker_id): # pylint:disable=unused-argument
         # torch.initial_seed() returns the initial seed for generating random numbers.
@@ -351,7 +403,7 @@ def train_vade(args):
     args['final_directory'] = final_directory
 
     # create yaml file from arguments
-    with open(f'{args["final_directory"]}/args.yaml', 'w') as file:
+    with open(args['final_directory'] + '/args.yaml', 'w') as file:
         yaml.dump(args, file)
 
     #--------------------------------------------------------------------------------#
@@ -408,7 +460,6 @@ def train_vade(args):
                 one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
                 directory=exp_dir, ignore_label=args['ignore_label'], spatial=args['spatial_coord'])
         print('Initialized VaDE model.')
-        
         vade.to(args['device'])
         print(f'Pushed model to {args["device"]}.')
 
@@ -416,10 +467,13 @@ def train_vade(args):
         # load pretrained models if provided
         #------------------------------------------------------------------------------------#
 
-        if args['pretrain'] != "":
-            print(f"Load model from {args['pretrain']}...")
-            vade.load_model(args['pretrain'])
+        if pretrain_location is not None:
+            print(f"Load model from {pretrain_location}...")
+            vade.load_model(pretrain_location)
             print('Loaded pretrained network weights.')
+
+        os.remove(pretrain_location)
+
         print("Initializing through GMM...")
         vade.initialize_gmm(dataloader)
         print("Initialized through GMM.")
@@ -465,6 +519,10 @@ def main():
     args = read_args()
 
     # train VaDE with given hyperparameters
+    if args['pretrain'] == True:
+        save_location = train_prevade(args)
+        train_vade(args, save_location)
+        return 
     train_vade(args)
 
 if __name__ == "__main__":

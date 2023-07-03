@@ -293,7 +293,7 @@ class VaDE(nn.Module):
 
 
         #--------------------------------------------------------------------------------#
-        # Regularize with gamma=q(c|x)
+        # Regularize with gamma=q(c|x) -> q(c|g(x)) where g(x) is our spectra
         #--------------------------------------------------------------------------------#
         if self.lambdas != 0:
             delta_qcx_right = self.one_by_delta_x * (gamma_right - gamma)
@@ -356,7 +356,7 @@ class VaDE(nn.Module):
         # copy weights to model
         #--------------------------------------------------------------------------------#
         model_dict.update(pretrained_dict)
-        self.load_state_dict(model_dict)
+        self.load_state_dict(model_dict, strict=False)
 
     def visualize_latent_space(self, z, y, epoch):
         ''' visualize latent space using t-SNE '''

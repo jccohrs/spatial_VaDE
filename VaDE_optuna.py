@@ -26,7 +26,7 @@ def main():
     # load MySQL optuna configuration from yaml file
     with open(os.path.expandvars('${OPTUNA_CONF}'), encoding='utf-8') as y:
         conf = yaml.load(y, Loader=SafeLoader)
-        storage = f"mysql://{conf['user']}:{conf['password']}@{conf['host']}/optuna"
+        storage = f"mysql://{conf['user']}:{conf['password']}@{conf['host']}/optuna?unix_socket=/var/run/mysqld/mysqld.sock"
 
     # Salinas
     study = optuna.create_study(storage=storage,
