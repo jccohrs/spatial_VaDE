@@ -1,5 +1,6 @@
 lr: 0.0001
 batch_size: 100
+<<<<<<< HEAD
 epochs: 10
 pretrain: True
 regularizer: 0.01
@@ -8,11 +9,28 @@ image_file: IndianPines
 n_cl: 16
 mnf_features: 6
 visualize: False
+=======
+epochs: 20
+pretrain: true
+regularizer: 0.01
+save: true
+image_file: SalinasA
+n_cl: 16
+mnf_features: 7
+visualize: false
+>>>>>>> 2f1779b5268b9f34290b1e2a77357bac6a4ecf16
 latent_dim: 10
 ignore_label: 0
 patches: False
 patch_size: 5
+<<<<<<< HEAD
 use_mnf: False
 use_pca: False
 spatial_coord: False
 epochs_pretrain: 3
+=======
+use_mnf: true
+use_pca: false
+spatial_coord: true
+epochs_pretrain: 20
+>>>>>>> 2f1779b5268b9f34290b1e2a77357bac6a4ecf16
