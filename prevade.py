@@ -52,14 +52,21 @@ def build_network(layers, activation="relu", dropout=0):
 class PreVade(nn.Module):
     def __init__(self, input_dim=200, z_dim=10, n_centroids=10,
                 encodeLayer=[500, 500,2000], decodeLayer=[2000, 500, 500],
-                im_shape=(145, 145)):
+                im_shape=(145, 145), spatial=False):
         super(PreVade, self).__init__()
         self.z_dim = z_dim
         self.n_centroids = n_centroids
         self.im_shape = im_shape
         self.input_dim = input_dim
+        self.spatial = spatial
 
-        self.encoder = build_network([input_dim] + encodeLayer)
+        if self.spatial:
+            # if spatial coordinates are concatenated, encode them using an extra linear layer
+            self.spectral_enc = nn.Sequential(*[nn.Linear(input_dim, encodeLayer[0]), nn.ReLU()])
+            self.spatial_enc = nn.Sequential(*[nn.Linear(2, encodeLayer[0]), nn.ReLU()])
+            self.encoder = build_network(encodeLayer)
+        else:
+            self.encoder = build_network([input_dim] + encodeLayer)
         self.decoder = build_network([z_dim] + decodeLayer)
 
         self._enc_mu = nn.Linear(encodeLayer[-1], z_dim)
@@ -71,7 +78,13 @@ class PreVade(nn.Module):
         return z, reconstructed_x
 
     def encode(self, x):
-        h = self.encoder(x)
+        if self.spatial:
+            # if spatial coordinate is added, encode it in an extra feature vector
+            h_spectral = self.spectral_enc(x[:, :-2])
+            h_spatial = self.spatial_enc(x[:, -2:])
+            h = self.encoder(h_spectral + h_spatial)
+        else:
+            h = self.encoder(x)
         mu = self._enc_mu(h)
         return mu
     

@@ -339,7 +339,7 @@ def train_prevade(args):
 
     ## Initialize an instance of autoencoder
     prevade = PreVade(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
-                    encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1])
+                    encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1], spatial=args['spatial'])
     prevade.to(args['device'])
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, prevade.parameters()), lr=lr)
     loss_fn = nn.MSELoss()
