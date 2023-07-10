@@ -1,12 +1,12 @@
 lr: 0.0001
 batch_size: 100
-epochs: 10
+epochs: 3
 pretrain: True
 regularizer: 0.01
 save: True
 image_file: IndianPines
 n_cl: 16
-mnf_features: 6
+mnf_features: 7
 visualize: False
 latent_dim: 10
 ignore_label: 0
@@ -14,5 +14,5 @@ patches: False
 patch_size: 5
 use_mnf: True
 use_pca: False
-spatial_coord: False
-epochs_pretrain: 3
+spatial_coord: True
+epochs_pretrain: 1

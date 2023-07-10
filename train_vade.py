@@ -36,13 +36,6 @@ from msiplib.segmentation import rebuild_segment_numbering
 #------------------------------------------------------------------------------#
 # seed the randomness, reduce non-determinism
 #------------------------------------------------------------------------------#
-seed = 2021
-random.seed(seed)
-torch.manual_seed(seed)
-np.random.seed(seed)
-seed_hyp = seed
-g = torch.Generator()
-g.manual_seed(seed)
 os.environ["CUBLAS_WORKSPACE_CONFIG"]=":4096:8"
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
@@ -320,6 +313,12 @@ class HSIDataset(Dataset):
 
 def train_prevade(args):
     #### Read hyperspectral data
+    seed = int(args['seed'])
+    random.seed(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    g = torch.Generator()
+    g.manual_seed(seed)
     def seed_worker(worker_id):
         worker_seed = torch.initial_seed() % 2**32
         np.random.seed(worker_seed)
@@ -337,9 +336,11 @@ def train_prevade(args):
     lr = args['lr']
     num_epochs = args['epochs_pretrain']
 
+    print(f'Input Dimension: {args["data_dim"]}')
+
     ## Initialize an instance of autoencoder
     prevade = PreVade(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
-                    encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1], spatial=args['spatial'])
+                    encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1], spatial=args['spatial_coord'])
     prevade.to(args['device'])
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, prevade.parameters()), lr=lr)
     loss_fn = nn.MSELoss()
@@ -375,6 +376,12 @@ def train_vade(args, pretrain_location = None):
     ''' main function '''
     # TODO: total variation plus patches not implemented yet!    
     # determinism for dataloader
+    seed = args['seed']
+    random.seed(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    g = torch.Generator()
+    g.manual_seed(seed)
     def seed_worker(worker_id): # pylint:disable=unused-argument
         # torch.initial_seed() returns the initial seed for generating random numbers.
         # if torch.manual_seed(val) is used before, torch.initial_seed() returns val.
@@ -512,11 +519,12 @@ def train_vade(args, pretrain_location = None):
 
     return score['overallAcc']
 
-def main():
+def main(seed):
     """ main function """
 
     # parse arguments from command line and config file
     args = read_args()
+    args['seed'] = int(seed)
 
     # train VaDE with given hyperparameters
     if args['pretrain'] == True:

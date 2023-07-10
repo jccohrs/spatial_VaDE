@@ -11,12 +11,18 @@ from train_vade import read_args
 from optuna.trial import TrialState
 from yaml.loader import SafeLoader
 from train_vade import train_vade
+import numpy as np
+from numpy import random
 
 def hyper_tuning_SA(trial):
     ''' function performing hyperparameter tuning '''
     args = read_args()  
     ## Example overwrite for hyperparameter fields
     ## args['reg_par'] = trial.suggest_float('reg_par', 0.05, 0.25)
+    seed = args['master_seed']
+    np.random.seed(seed)
+    np.random.randint(1, 1000, size=1)
+
 
     return train_vade(args)
 

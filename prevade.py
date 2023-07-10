@@ -82,6 +82,7 @@ class PreVade(nn.Module):
             # if spatial coordinate is added, encode it in an extra feature vector
             h_spectral = self.spectral_enc(x[:, :-2])
             h_spatial = self.spatial_enc(x[:, -2:])
+            print((h_spatial).shape)
             h = self.encoder(h_spectral + h_spatial)
         else:
             h = self.encoder(x)
