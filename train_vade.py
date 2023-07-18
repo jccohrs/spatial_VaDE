@@ -1,3 +1,4 @@
+
 #pylint: disable=no-member
 ''' script to train vade with hyperopt '''
 
@@ -6,6 +7,7 @@ import os
 import random
 import re
 import time
+from attr import field
 import yaml
 import argparse
 from datetime import datetime
@@ -40,6 +42,15 @@ os.environ["CUBLAS_WORKSPACE_CONFIG"]=":4096:8"
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 torch.use_deterministic_algorithms(True) 
+
+def filtered_yaml_dump(args, file):
+    with open("./args.yaml", 'r') as f:
+        data = yaml.safe_load(f)
+    fields = list(data.keys())  
+    filtered_args = {field: args[field] for field in fields if field in args}
+    print(f"TRAIN_VADE: {filtered_args} in file {file}")
+    yaml.dump(filtered_args, file) 
+    return
 
 def read_args():
     args = dict()
@@ -326,20 +337,16 @@ def train_prevade(args):
 
     data_path = f'$DATA_DIR/segmentation/{args["image_file"]}/{args["image_file"]}.nc'
     im, gt, _, args['gt_file'] = read_data(os.path.expandvars(data_path))
+    args = prepare_data(im, gt, args, seed_worker, g)
 
-    hyperspectral_data = HSIDataset(im, gt, None, args['device'])
-    dataloader = DataLoader(hyperspectral_data, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False,
-                                        worker_init_fn=seed_worker, generator=g)
-    args['im'], args['gt'], args['data_dim'], args['im_shape'] = im, gt, im.shape[2], im.shape
-    
+    dataloader = args['dataloader']
+
     ## Fetch relevant hyperparameters
     lr = args['lr']
     num_epochs = args['epochs_pretrain']
 
-    print(f'Input Dimension: {args["data_dim"]}')
-
     ## Initialize an instance of autoencoder
-    prevade = PreVade(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
+    prevade = PreVade(spectral_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
                     encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1], spatial=args['spatial_coord'])
     prevade.to(args['device'])
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, prevade.parameters()), lr=lr)
@@ -355,7 +362,10 @@ def train_prevade(args):
             # 1. Forward pass
             z, mu_x = prevade.forward(inputs)
             # 2. Calculate the loss 
-            loss = loss_fn(mu_x, inputs)
+            if args['spatial_coord'] == True:
+                loss = loss_fn(mu_x, inputs[:, :-2])
+            else:
+                loss = loss_fn(mu_x, inputs)
             train_loss += loss.data.item() * len(inputs)
             # 3. Optimize the zero-grad
             optimizer.zero_grad()
@@ -409,9 +419,10 @@ def train_vade(args, pretrain_location = None):
         os.makedirs(final_directory)
     args['final_directory'] = final_directory
 
+    print(f"VADE: {args['final_directory'] + '/args.yaml'}")
     # create yaml file from arguments
     with open(args['final_directory'] + '/args.yaml', 'w') as file:
-        yaml.dump(args, file)
+        filtered_yaml_dump(args, file)
 
     #--------------------------------------------------------------------------------#
     # read data from the source
@@ -459,6 +470,9 @@ def train_vade(args, pretrain_location = None):
         #--------------------------------------------------------------------------------#
         start_time = time.time()
         print(f'regularizer : {args["regularizer"]}')
+
+
+        print(f'input_dim={args["data_dim"]}, im_shape={args["im_shape"][:-1]}')
         #------------------------------------------------------------------------------------#
         # init model
         #------------------------------------------------------------------------------------#
@@ -478,8 +492,7 @@ def train_vade(args, pretrain_location = None):
             print(f"Load model from {pretrain_location}...")
             vade.load_model(pretrain_location)
             print('Loaded pretrained network weights.')
-
-        os.remove(pretrain_location)
+            os.remove(pretrain_location)
 
         print("Initializing through GMM...")
         vade.initialize_gmm(dataloader)
@@ -519,7 +532,7 @@ def train_vade(args, pretrain_location = None):
 
     return score['overallAcc']
 
-def main(seed):
+def main(seed=32):
     """ main function """
 
     # parse arguments from command line and config file
