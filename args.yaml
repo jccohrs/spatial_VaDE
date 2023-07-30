@@ -1,6 +1,6 @@
 lr: 0.0001
 batch_size: 100
-epochs: 20
+epochs: 1
 pretrain: True
 regularizer: 0.0
 save: True
@@ -15,4 +15,4 @@ patch_size: 5
 use_mnf: False
 use_pca: False
 spatial_coord: True
-epochs_pretrain: 5
+epochs_pretrain: 20

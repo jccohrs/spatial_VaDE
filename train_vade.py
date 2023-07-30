@@ -322,7 +322,7 @@ class HSIDataset(Dataset):
     def __len__(self):
         return self.data.shape[0]
 
-def train_prevade(args):
+def train_prevade(args, pretrain_logfile_path):
     #### Read hyperspectral data
     seed = int(args['seed'])
     random.seed(seed)
@@ -352,29 +352,31 @@ def train_prevade(args):
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, prevade.parameters()), lr=lr)
     loss_fn = nn.MSELoss()
 
-    ## Training Loop
-    print(f'Starting a pretraining loop for {num_epochs} epochs')
-    for epoch in range(num_epochs):
-        train_loss = 0
-        ## Loop through our batches of data
-        for _, (inputs, _) in enumerate(dataloader):
-            inputs = Variable(inputs)
-            # 1. Forward pass
-            z, mu_x = prevade.forward(inputs)
-            # 2. Calculate the loss 
-            if args['spatial_coord'] == True:
-                loss = loss_fn(mu_x, inputs[:, :-2])
-            else:
-                loss = loss_fn(mu_x, inputs)
-            train_loss += loss.data.item() * len(inputs)
-            # 3. Optimize the zero-grad
-            optimizer.zero_grad()
-            # 4. Loss backward
-            loss.backward()
-            # 5. Optimize step
-            optimizer.step()
+    with Tee(pretrain_logfile_path):
+        
+        ## Training Loop
+        print(f'Starting a pretraining loop for {num_epochs} epochs')
+        for epoch in range(num_epochs):
+            train_loss = 0
+            ## Loop through our batches of data
+            for _, (inputs, _) in enumerate(dataloader):
+                inputs = Variable(inputs)
+                # 1. Forward pass
+                z, mu_x = prevade.forward(inputs)
+                # 2. Calculate the loss 
+                if args['spatial_coord'] == True:
+                    loss = loss_fn(mu_x, inputs[:, :-2])
+                else:
+                    loss = loss_fn(mu_x, inputs)
+                train_loss += loss.data.item() * len(inputs)
+                # 3. Optimize the zero-grad
+                optimizer.zero_grad()
+                # 4. Loss backward
+                loss.backward()
+                # 5. Optimize step
+                optimizer.step()
 
-        print(f'#Epoch {epoch:3d}: lr: {lr}, Train Loss: {train_loss / len(dataloader.dataset):.5f}, ')
+            print(f'#Epoch {epoch:3d}: lr: {lr}, Train Loss: {train_loss / len(dataloader.dataset):.5f}, ')
     
     ## Save Model
     pretrain_filename = f'pretrain_ep{num_epochs}_lr{lr}.pt'
@@ -382,7 +384,7 @@ def train_prevade(args):
     prevade.save_model(save_location)
     return save_location
 
-def train_vade(args, pretrain_location = None):
+def train_vade(args):
     ''' main function '''
     # TODO: total variation plus patches not implemented yet!    
     # determinism for dataloader
@@ -447,6 +449,13 @@ def train_vade(args, pretrain_location = None):
         os.mkdir(exp_dir)
 
     logfile_path = f'{exp_dir}/output-{exp_spec_path}.log'
+
+    # if pretraining is enabled, run pre-training
+    pretrain_logfile_path = f'{exp_dir}/output-pretrain-{exp_spec_path}.log'
+    pretrain_location = None
+    if args['pretrain'] == True:
+        pretrain_location = train_prevade(args, pretrain_logfile_path)
+
     with Tee(logfile_path):
         print(f'Running training on {os.uname()[1]}')
         print(f'Working on image {args["image_file"]}...')
@@ -540,10 +549,6 @@ def main(seed=32):
     args['seed'] = int(seed)
 
     # train VaDE with given hyperparameters
-    if args['pretrain'] == True:
-        save_location = train_prevade(args)
-        train_vade(args, save_location)
-        return 
     train_vade(args)
 
 if __name__ == "__main__":
