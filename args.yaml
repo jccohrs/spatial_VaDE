@@ -6,8 +6,8 @@ regularizer: 0.0
 save: True
 image_file: IndianPines
 n_cl: 16
-mnf_features: 7
-visualize: False
+mnf_features: 8
+visualize: True
 latent_dim: 10
 ignore_label: 0
 patches: False

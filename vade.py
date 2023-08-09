@@ -17,6 +17,8 @@ from sklearn.mixture import GaussianMixture
 from msiplib.io import saveArrayAsNetCDF
 from msiplib.segmentation import create_segmentation_colormap
 
+from tsnecuda import TSNE as TSNE_GPU
+
 def cluster_acc(y_pred, y, ignore_label=None):
     ''' compute overall accuracy of clustering '''
     if ignore_label is not None:
@@ -358,9 +360,21 @@ class VaDE(nn.Module):
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict, strict=False)
 
-    def visualize_latent_space(self, z, y, epoch):
-        ''' visualize latent space using t-SNE '''
+    def visualize_latent_space_cpu(self, z, y, epoch):
+        ''' visualize latent space using t-SNE in CPU'''
         tsne = TSNE(n_components=2, init='random')
+        z_tsne = tsne.fit_transform(z)
+        fig, ax = plt.subplots()
+        cmap = create_segmentation_colormap()
+        for t in range(self.n_centroids):
+            points = z_tsne[y == t]
+            ax.scatter(points[:, 0], points[:, 1], color=cmap[t], label=str(t), s=1)
+        ax.legend()
+        fig.savefig(f'{self.directory}/latent_epoch{epoch}_reg{self.lambdas}.png')
+
+    def visualize_latent_space(self, z, y, epoch):
+        ''' visualize latent space using t-SNE in GPU'''
+        tsne = TSNE_GPU(n_components=2)
         z_tsne = tsne.fit_transform(z)
         fig, ax = plt.subplots()
         cmap = create_segmentation_colormap()

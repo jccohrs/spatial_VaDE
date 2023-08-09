@@ -7,6 +7,7 @@ import os
 import random
 import re
 import time
+# import pdb    
 from attr import field
 import yaml
 import argparse
@@ -376,7 +377,7 @@ def train_prevade(args, pretrain_logfile_path):
                 # 5. Optimize step
                 optimizer.step()
 
-            print(f'#Epoch {epoch:3d}: lr: {lr}, Train Loss: {train_loss / len(dataloader.dataset):.5f}, ')
+            print(f'#Epoch {epoch:3d}: lr: {lr}, Train Loss: {train_loss}, ')
     
     ## Save Model
     pretrain_filename = f'pretrain_ep{num_epochs}_lr{lr}.pt'
@@ -503,6 +504,11 @@ def train_vade(args):
             print('Loaded pretrained network weights.')
             os.remove(pretrain_location)
 
+        ### To check pretraining weights
+        ### vade.load_state_dict(torch.load("/home/chagnaa/output/segmentation/vade/pure/IndianPines/Study_reg0_spat1_pretrain0/2023-7-26-11-25-29-ep500_ldim10_reg0_0_spat1/vade_params-ep500_ldim10_reg0_0_spat1.pt"))
+        ### weights = vade.state_dict()
+        ### pdb.set_trace()
+        
         print("Initializing through GMM...")
         vade.initialize_gmm(dataloader)
         print("Initialized through GMM.")
