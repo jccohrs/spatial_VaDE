@@ -22,5 +22,6 @@ def create_study_folder():
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
 
+args = train_vade.read_args()
 for s in seeds:
-    train_vade.main(s)                                      
+    train_vade.main(s, args)                                      

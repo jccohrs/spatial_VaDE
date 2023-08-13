@@ -547,11 +547,12 @@ def train_vade(args):
 
     return score['overallAcc']
 
-def main(seed=32):
+def main(seed=32, args = None):
     """ main function """
 
     # parse arguments from command line and config file
-    args = read_args()
+    if args is None:
+        args = read_args()
     args['seed'] = int(seed)
 
     # train VaDE with given hyperparameters
