@@ -6,6 +6,7 @@ import math
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+import logging
 from torch import nn
 from torch import optim
 from torch.autograd import Variable
@@ -433,14 +434,14 @@ class VaDE(nn.Module):
 
 
     def fit(self, trainloader, validloader, lr=0.002, num_epochs=10,
-        visualize=True, anneal=False):
+        visualize=True, anneal=False, model=None):
         ''' train model '''
         #--------------------------------------------------------------------------------#
         # initial optimizer. the filter function only passes the parameters to Adam that need gradient
         #--------------------------------------------------------------------------------#
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=lr)
 
-        #--------------------------------------------------------------------------------#
+        #----------------------------------------       ----------------------------------------#
         # validate
         #--------------------------------------------------------------------------------#
         self.eval()
@@ -478,7 +479,11 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # train num_epochs
         #--------------------------------------------------------------------------------#
-
+        grad_norm_list = []
+        grad_angle_list = []
+        grad_angle_list_first = []
+        previous_grad = None ## initialize dummy previous gradient to avoid error
+        first_grad = []
         for epoch in range(num_epochs):
             self.train()
             #--------------------------------------------------------------------------------#
@@ -493,7 +498,7 @@ class VaDE(nn.Module):
             # compute a gradient step for each training batch
             #--------------------------------------------------------------------------------#
             train_loss = 0
-            for _, (inputs, _) in enumerate(trainloader):
+            for idx, (inputs, _) in enumerate(trainloader):
                 optimizer.zero_grad()
                 inputs = Variable(inputs)
 
@@ -510,6 +515,34 @@ class VaDE(nn.Module):
                 train_loss += loss.data.item() * len(inputs)
                 loss.backward()
                 optimizer.step()
+
+                ############ LOG GRADIENT NORM AND ANGLES ############
+                grad_norm = 0.0
+                current_grad = []
+                for param in self.parameters():
+                    grad_norm += torch.norm(param.grad.data) ** 2
+                    if param.grad is not None:
+                        current_grad.append(param.grad.view(-1))
+                current_grad = torch.cat(current_grad)
+                if idx == 0:
+                    first_grad = current_grad
+                grad_norm = grad_norm ** 0.5
+                ## calculate cur-to-prev gradient comparison
+                if previous_grad is not None:
+                    cosine_similarity = torch.dot(current_grad, previous_grad) / (torch.norm(current_grad) * torch.norm(previous_grad))
+                    angle = np.arccos(cosine_similarity) * 180 / np.pi
+                    grad_angle_list.append(angle.item())
+                previous_grad = current_grad.clone()
+                ## calculate cur-to-first gradient comparison
+                cosine_similarity = torch.dot(current_grad, first_grad) / (torch.norm(current_grad) * torch.norm(first_grad))
+                angle = np.arccos(cosine_similarity) * 180 / np.pi
+                grad_angle_list_first.append(angle.item())
+                grad_norm_list.append(grad_norm.item())
+                #######################################################
+            with open(self.directory+'/gradient_info.log', 'w') as file:
+                file.write("Gradient Norm: " + str(grad_norm_list) + "\n")
+                file.write("Gradient Angle (prev): " + str(grad_angle_list) + "\n")
+                file.write("Gradient Angle (first): " + str(grad_angle_list_first) + "\n")
 
             #--------------------------------------------------------------------------------#
             # validate current weights on validation set
@@ -555,7 +588,7 @@ class VaDE(nn.Module):
             gamma_all = np.concatenate(gamma_all)
             acc = cluster_acc(y_pred, y, self.ignore_label)
 
-            print(f'#Epoch {epoch:3d}: lr: {epoch_lr:.5f}, Train Loss: {train_loss / len(trainloader.dataset):.5f}, ' \
+            print(f'#Epoch {epoch:3d}: Gradient Norm: {grad_norm.item()}, lr: {epoch_lr:.5f}, Train Loss: {train_loss / len(trainloader.dataset):.5f}, ' \
                   f'Valid Loss: {valid_loss / len(validloader.dataset):.5f}, acc: {acc[0]:.5f}')
 
             if visualize and (epoch % 50 == 0 or epoch == num_epochs - 1):

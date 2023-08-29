@@ -7,11 +7,13 @@ import os
 import random
 import re
 import time
+from typing import final
 # import pdb    
 from attr import field
 import yaml
 import argparse
 from datetime import datetime
+import logging
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -43,6 +45,17 @@ os.environ["CUBLAS_WORKSPACE_CONFIG"]=":4096:8"
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 torch.use_deterministic_algorithms(True) 
+
+def angle_between_vectors(v1, v2):
+    dot_product = np.dot(v1, v2)
+    norm_v1 = np.linalg.norm(v1)
+    norm_v2 = np.linalg.norm(v2)
+    
+    cos_theta = dot_product / (norm_v1 * norm_v2)
+    radians = np.arccos(cos_theta)
+    degrees = np.degrees(radians)
+    
+    return degrees
 
 def filtered_yaml_dump(args, file):
     with open("./args.yaml", 'r') as f:
@@ -353,6 +366,11 @@ def train_prevade(args, pretrain_logfile_path):
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, prevade.parameters()), lr=lr)
     loss_fn = nn.MSELoss()
 
+    grad_norm_list = []
+    grad_angle_list = []
+    grad_angle_list_first = []
+    previous_grad = None ## initialize dummy previous gradient to avoid error
+    first_grad = []
     with Tee(pretrain_logfile_path):
         
         ## Training Loop
@@ -360,7 +378,7 @@ def train_prevade(args, pretrain_logfile_path):
         for epoch in range(num_epochs):
             train_loss = 0
             ## Loop through our batches of data
-            for _, (inputs, _) in enumerate(dataloader):
+            for idx, (inputs, _) in enumerate(dataloader):
                 inputs = Variable(inputs)
                 # 1. Forward pass
                 z, mu_x = prevade.forward(inputs)
@@ -377,8 +395,36 @@ def train_prevade(args, pretrain_logfile_path):
                 # 5. Optimize step
                 optimizer.step()
 
-            print(f'#Epoch {epoch:3d}: lr: {lr}, Train Loss: {train_loss}, ')
-    
+                ############ LOG GRADIENT NORM AND ANGLES ############
+                grad_norm = 0.0
+                current_grad = []
+                for param in prevade.parameters():
+                    grad_norm += torch.norm(param.grad.data) ** 2
+                    if param.grad is not None:
+                        current_grad.append(param.grad.view(-1))
+                current_grad = torch.cat(current_grad)
+                if idx == 0:
+                    first_grad = current_grad
+                grad_norm = grad_norm ** 0.5
+                ## calculate cur-to-prev gradient comparison
+                if previous_grad is not None:
+                    cosine_similarity = torch.dot(current_grad, previous_grad) / (torch.norm(current_grad) * torch.norm(previous_grad))
+                    angle = np.arccos(cosine_similarity) * 180 / np.pi
+                    grad_angle_list.append(angle.item())
+                previous_grad = current_grad.clone()
+                ## calculate cur-to-first gradient comparison
+                cosine_similarity = torch.dot(current_grad, first_grad) / (torch.norm(current_grad) * torch.norm(first_grad))
+                angle = np.arccos(cosine_similarity) * 180 / np.pi
+                grad_angle_list_first.append(angle.item())
+                grad_norm_list.append(grad_norm.item())
+                #######################################################
+
+            print(f'#Epoch {epoch:3d}: lr: {lr}, Train Loss: {train_loss}, Gradient Norm: {grad_norm}')
+    with open(args['exp_dir']+'/gradient_info_pretrain.log', 'w') as file:
+        file.write("Gradient Norm: " + str(grad_norm_list) + "\n")
+        file.write("Gradient Angle (prev): " + str(grad_angle_list) + "\n")
+        file.write("Gradient Angle (first): " + str(grad_angle_list_first) + "\n")
+
     ## Save Model
     pretrain_filename = f'pretrain_ep{num_epochs}_lr{lr}.pt'
     save_location = './' + pretrain_filename
@@ -448,6 +494,7 @@ def train_vade(args):
     exp_dir = f'{args["final_directory"]}/{time_stamp}-{exp_spec_path}'
     if not os.path.exists(exp_dir):
         os.mkdir(exp_dir)
+    args['exp_dir'] = exp_dir   
 
     logfile_path = f'{exp_dir}/output-{exp_spec_path}.log'
 
@@ -515,7 +562,7 @@ def train_vade(args):
 
         print('Fit the model...')
         y_pred = vade.fit(dataloader, validloader, lr=args['lr'], num_epochs=args['epochs'],
-                          anneal=False, visualize=args['visualize'])
+                          anneal=False, visualize=args['visualize'], model=vade)
 
         print('Save found parameters...')
         if args['save']:
