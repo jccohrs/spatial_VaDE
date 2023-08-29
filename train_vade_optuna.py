@@ -1,5 +1,5 @@
-#pylint: disable=no-member
-''' script to train vade with optuna '''
+# pylint: disable=no-member
+""" script to train vade with optuna """
 
 import argparse
 import os
@@ -24,43 +24,41 @@ from vade_opt import VaDE
 from skimage.exposure import rescale_intensity
 from msiplib.io import saveArrayAsNetCDF, Tee
 from msiplib.io.segmentation import save_gt_colored_segmentation
-#from msiplib.io.segmentation import (save_gt_colored_segmentation,
+
+# from msiplib.io.segmentation import (save_gt_colored_segmentation,
 #                                   visualize_correct_wrong_pixels)
 from msiplib.metrics import segmentation_scores
 from msiplib.segmentation import rebuild_segment_numbering
 
 
 def parse_args():
-    ''' function to parse arguments '''
-    parser = argparse.ArgumentParser(description='VaDE: Variational Deep Embedding')
-    parser.add_argument('--lr', type=float, default=0.0001, metavar='N',
-                        help='learning rate for training (default: 0.0001)')
-    parser.add_argument('--batch-size', type=int, default=100, metavar='N',
-                        help='input batch size for training (default: 100)')
-    parser.add_argument('--epochs', type=int, default=1, metavar='N',
-                        help='number of epochs to train (default: 500)')
-    parser.add_argument('--pretrain', type=str, default="", metavar='N',
-                        help='path to pretrained model')
-    parser.add_argument('--regularizer',type=float, default=0.01, metavar='N',
-                        help='value for reularization')
-    parser.add_argument('--save', type=bool, default=True,
-                        help='If true, save founds weights after training.')
+    """function to parse arguments"""
+    parser = argparse.ArgumentParser(description="VaDE: Variational Deep Embedding")
+    parser.add_argument(
+        "--lr", type=float, default=0.0001, metavar="N", help="learning rate for training (default: 0.0001)"
+    )
+    parser.add_argument(
+        "--batch-size", type=int, default=100, metavar="N", help="input batch size for training (default: 100)"
+    )
+    parser.add_argument("--epochs", type=int, default=1, metavar="N", help="number of epochs to train (default: 500)")
+    parser.add_argument("--pretrain", type=str, default="", metavar="N", help="path to pretrained model")
+    parser.add_argument("--regularizer", type=float, default=0.01, metavar="N", help="value for reularization")
+    parser.add_argument("--save", type=bool, default=True, help="If true, save founds weights after training.")
     args = parser.parse_args()
 
     return vars(args)
 
 
 def parse_log(path_to_log):
-    """Parse log file
-    """
+    """Parse log file"""
 
-    regex_epoch = re.compile(r'#Epoch(\s+)(\d+)')
-    regex_train_loss = re.compile(r'Train Loss: (-?\d+\.?\d*)')
-    regex_valid_loss = re.compile(r'Valid Loss: (-?\d+\.?\d*)')
-    regex_accuracy = re.compile(r'acc: (\d+\.?\d*)')
+    regex_epoch = re.compile(r"#Epoch(\s+)(\d+)")
+    regex_train_loss = re.compile(r"Train Loss: (-?\d+\.?\d*)")
+    regex_valid_loss = re.compile(r"Valid Loss: (-?\d+\.?\d*)")
+    regex_accuracy = re.compile(r"acc: (\d+\.?\d*)")
 
     df = []
-    with open(path_to_log, 'r', encoding='utf-8') as f:
+    with open(path_to_log, "r", encoding="utf-8") as f:
         for line in f:
             epoch_match = regex_epoch.search(line)
             train_loss_match = regex_train_loss.search(line)
@@ -77,85 +75,95 @@ def parse_log(path_to_log):
                 accuracy = float(accuracy_match.group(1))
 
             if epoch_match and epoch != -1:
-                df.append({'epoch': epoch, 'train loss': train_loss, 'valid loss': valid_loss, 'accuracy': accuracy})
+                df.append({"epoch": epoch, "train loss": train_loss, "valid loss": valid_loss, "accuracy": accuracy})
 
     return pd.DataFrame(df)
 
 
 def plot_stats(path, data):
-    ''' plot training statistics '''
+    """plot training statistics"""
     averaging_width = 11
     # plot train loss
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.set_title('Training loss')
-    ax.plot(data['epoch'], data['train loss'], label='Raw')
-    ax.plot(data['epoch'], pd.Series(data['train loss']).rolling(averaging_width).mean(),
-            label=f'Smoothed (width {averaging_width})')
+    ax.set_title("Training loss")
+    ax.plot(data["epoch"], data["train loss"], label="Raw")
+    ax.plot(
+        data["epoch"],
+        pd.Series(data["train loss"]).rolling(averaging_width).mean(),
+        label=f"Smoothed (width {averaging_width})",
+    )
     ax.set_ylim(bottom=-1200, top=0)
-    ax.set(xlabel='Epoch', ylabel='Train loss')
+    ax.set(xlabel="Epoch", ylabel="Train loss")
     ax.legend()
-    fig.savefig(f'{path}-train-loss.png')
+    fig.savefig(f"{path}-train-loss.png")
 
     # plot validation loss
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.set_title('Validation loss')
-    ax.plot(data['epoch'], data['valid loss'], label='Raw')
-    ax.plot(data['epoch'], pd.Series(data['valid loss']).rolling(averaging_width).mean(),
-            label=f'Smoothed (width {averaging_width})')
+    ax.set_title("Validation loss")
+    ax.plot(data["epoch"], data["valid loss"], label="Raw")
+    ax.plot(
+        data["epoch"],
+        pd.Series(data["valid loss"]).rolling(averaging_width).mean(),
+        label=f"Smoothed (width {averaging_width})",
+    )
     ax.set_ylim(bottom=-1200, top=0)
-    ax.set(xlabel='Epoch', ylabel='Validation loss')
+    ax.set(xlabel="Epoch", ylabel="Validation loss")
     ax.legend()
-    fig.savefig(f'{path}-valid-loss.png')
+    fig.savefig(f"{path}-valid-loss.png")
 
     # plot accuracy
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.set_title('Overall accuracy')
-    ax.plot(data['epoch'], data['accuracy'], label='Raw')
-    ax.plot(data['epoch'], pd.Series(data['accuracy']).rolling(averaging_width).mean(),
-            label=f'Smoothed (width {averaging_width})')
+    ax.set_title("Overall accuracy")
+    ax.plot(data["epoch"], data["accuracy"], label="Raw")
+    ax.plot(
+        data["epoch"],
+        pd.Series(data["accuracy"]).rolling(averaging_width).mean(),
+        label=f"Smoothed (width {averaging_width})",
+    )
     ax.set_ylim(bottom=0, top=1)
-    ax.set(xlabel='Epoch', ylabel='Accuracy')
+    ax.set(xlabel="Epoch", ylabel="Accuracy")
     ax.legend()
-    fig.savefig(f'{path}-accuracy.png')
+    fig.savefig(f"{path}-accuracy.png")
 
 
 def read_data(filename):
-    ''' read data: input image and ground truth '''
-    #--------------------------------------------------------------------------------#
+    """read data: input image and ground truth"""
+    # --------------------------------------------------------------------------------#
     # init dataset and data loader
-    #--------------------------------------------------------------------------------#
-    ncfile = ncDataset(filename, 'r')
-    inputimage = ncfile['data'][:].data.astype(np.float32)
+    # --------------------------------------------------------------------------------#
+    ncfile = ncDataset(filename, "r")
+    inputimage = ncfile["data"][:].data.astype(np.float32)
 
-    gt_file = filename.replace('.nc', '_gt.png')
+    gt_file = filename.replace(".nc", "_gt.png")
 
-    #--------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------#
     # normalize image to have values between [0, 1]
-    #--------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------#
     inputimage = rescale_intensity(inputimage, out_range=(0.0, 1.0))
 
-    #--------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------#
     # if the image is grayscale, add a third dimension of size 1
-    #--------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------#
     if inputimage.ndim == 2:
         inputimage = np.expand_dims(inputimage, axis=2)
 
-    #--------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------#
     # load ground truth if available
-    #--------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------#
 
-    seg_gt = ncfile['groundtruth']['segmentation_mask'][:].data
-    k_gt = ncfile['groundtruth']['num_segments'][:].data.item()
+    seg_gt = ncfile["groundtruth"]["segmentation_mask"][:].data
+    k_gt = ncfile["groundtruth"]["num_segments"][:].data.item()
 
     return inputimage, seg_gt, k_gt, gt_file
 
 
 class HSIDataset(Dataset):
-    ''' define HSI dataset '''
-    def __init__(self, pts, labels, device='cuda'):
+    """define HSI dataset"""
+
+    def __init__(self, pts, labels, device="cuda"):
         self.data = torch.from_numpy(pts).float().to(device)
         self.labels = torch.from_numpy(labels).int().to(device)
 
@@ -166,75 +174,84 @@ class HSIDataset(Dataset):
         return self.data.shape[0]
 
 
-def optuna_opt(trial,args,lam_lower,lam_upper):
-    ''' optimize over regularization parameter using optuna '''
+def optuna_opt(trial, args, lam_lower, lam_upper):
+    """optimize over regularization parameter using optuna"""
 
-    args['regularizer'] =trial.suggest_float('regularizer', lam_lower, lam_upper)
+    args["regularizer"] = trial.suggest_float("regularizer", lam_lower, lam_upper)
 
     now = datetime.now()
-    time_stamp = f'{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}-{now.second}'
+    time_stamp = f"{now.year}-{now.month}-{now.day}-{now.hour}-{now.minute}-{now.second}"
 
     exp_spec_path = f'epochs{args["epochs"]}_ldim{args["latent_dim"]}_reg{str(args["regularizer"]).replace(".", "_")}'
     exp_dir = f'{args["final_directory"]}/{time_stamp}-{exp_spec_path}'
     if not os.path.exists(exp_dir):
         os.mkdir(exp_dir)
 
-    logfile_path = f'{exp_dir}/output-{exp_spec_path}.log'
+    logfile_path = f"{exp_dir}/output-{exp_spec_path}.log"
     with Tee(logfile_path):
         print(f'Working on image {args["image_file"]}...')
         print(f'Device: {args["device"]}')
-        dataloader = args['dataloader']
-        validloader = args['validloader']
-        
+        dataloader = args["dataloader"]
+        validloader = args["validloader"]
+
         # im and gt not involved in computation on GPU
-        im = args['im']
-        gt = args['gt']
-        #--------------------------------------------------------------------------------#
-        #calculate the initial time
-        #--------------------------------------------------------------------------------#
+        im = args["im"]
+        gt = args["gt"]
+        # --------------------------------------------------------------------------------#
+        # calculate the initial time
+        # --------------------------------------------------------------------------------#
         start_time = time.time()
         print(f'regularizer : {args["regularizer"]}')
-        #------------------------------------------------------------------------------------#
+        # ------------------------------------------------------------------------------------#
         # init model
-        #------------------------------------------------------------------------------------#
-        vade = VaDE(trial, input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
-                encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500],
-                one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
-                directory=args['final_directory'], ignore_label=args['ignore_label_inside'])
-        print('Initialized VaDE model.')
-        vade.to(args['device'])
+        # ------------------------------------------------------------------------------------#
+        vade = VaDE(
+            trial,
+            input_dim=args["data_dim"],
+            z_dim=args["latent_dim"],
+            n_centroids=args["n_cl"],
+            encodeLayer=[500, 500, 2000],
+            decodeLayer=[2000, 500, 500],
+            one_by_delta_x=args["fd_inv_stepsize"],
+            regularization=args["regularizer"],
+            directory=args["final_directory"],
+            ignore_label=args["ignore_label_inside"],
+        )
+        print("Initialized VaDE model.")
+        vade.to(args["device"])
         print(f'Pushed model to {args["device"]}.')
 
-        #------------------------------------------------------------------------------------#
+        # ------------------------------------------------------------------------------------#
         # load pretrained models if provided
-        #------------------------------------------------------------------------------------#
+        # ------------------------------------------------------------------------------------#
 
-        if args['pretrain'] != "":
+        if args["pretrain"] != "":
             print(f"Load model from {args['pretrain']}...")
-            vade.load_model(args['pretrain'])
-            print('Loaded pretrained network weights.')
+            vade.load_model(args["pretrain"])
+            print("Loaded pretrained network weights.")
         print("Initializing through GMM...")
         vade.initialize_gmm(dataloader)
         print("Initialized through GMM.")
 
-        print('Fit the model...')
+        print("Fit the model...")
 
-        y_pred = vade.fit(dataloader, validloader, lr=args['lr'], num_epochs=args['epochs'],
-                          anneal=False, visualize=False)
+        y_pred = vade.fit(
+            dataloader, validloader, lr=args["lr"], num_epochs=args["epochs"], anneal=False, visualize=False
+        )
 
-        print('Save found parameters...')
-        if args['save']:
-            save_location = f'{exp_dir}/vade_params-{exp_spec_path}.pt'
-            print(f'Save weights at {save_location}')
+        print("Save found parameters...")
+        if args["save"]:
+            save_location = f"{exp_dir}/vade_params-{exp_spec_path}.pt"
+            print(f"Save weights at {save_location}")
             vade.save_model(save_location)
 
-        print('Save found segmentation...')
+        print("Save found segmentation...")
 
         seg = y_pred.reshape(im.shape[:-1]).astype(np.uint8)
-        print(f'Labels in segmentation: {np.unique(seg)}')
-        print(f'Number of labels in seg: {len(np.unique(seg))}')
+        print(f"Labels in segmentation: {np.unique(seg)}")
+        print(f"Number of labels in seg: {len(np.unique(seg))}")
 
-        '''
+        """
         if args['ignore_label'] is None:
             if args['use_mnf']:
                 filename = f'seg-{exp_spec_path}_mnf_all_pxs'
@@ -263,42 +280,42 @@ def optuna_opt(trial,args,lam_lower,lam_upper):
             # saveColoredSegmentation(seg, f'"final_directory"/{filename}.png', None, args['ignore_label_inside'],
             #                         True, gt)
             saveArrayAsNetCDF(seg, f'{exp_dir}/{filename}.nc')
-        '''
-        #---------------------------------------------------------------------------------------#
+        """
+        # ---------------------------------------------------------------------------------------#
         # evaluate segmentation
-        #---------------------------------------------------------------------------------------#
+        # ---------------------------------------------------------------------------------------#
 
-        print('Evaluate segmentation...')
-        score = segmentation_scores(seg, gt, args['ignore_label_inside'])
+        print("Evaluate segmentation...")
+        score = segmentation_scores(seg, gt, args["ignore_label_inside"])
         print(score)
-        #---------------------------------------------------------------------------------------#
-        #print the total time of execution
-        #---------------------------------------------------------------------------------------#
+        # ---------------------------------------------------------------------------------------#
+        # print the total time of execution
+        # ---------------------------------------------------------------------------------------#
 
         print(f"--- {(time.time() - start_time)} seconds ---")
-    
+
     # parse log file, store the extracted values and plot the stats
     df_log = parse_log(logfile_path)
-    df_log.to_csv(f'{exp_dir}/exp_stats.csv', sep=',', header=True, index=False)
-    plot_stats(f'{exp_dir}/plot_stats', df_log)
+    df_log.to_csv(f"{exp_dir}/exp_stats.csv", sep=",", header=True, index=False)
+    plot_stats(f"{exp_dir}/plot_stats", df_log)
 
-    return -score['overallAcc']
+    return -score["overallAcc"]
 
 
 def main():
-    ''' main function '''
-    #------------------------------------------------------------------------------#
+    """main function"""
+    # ------------------------------------------------------------------------------#
     # make argument compatible to hyperopt
-    #------------------------------------------------------------------------------#
+    # ------------------------------------------------------------------------------#
     args = parse_args()
     lam_lower = 0
     lam_upper = 0.025
     # args['regularizer'] = hp.uniform('regularizer', lam_lower, lam_upper)
-    #args['regularizer'] = 0.01
+    # args['regularizer'] = 0.01
 
-    #------------------------------------------------------------------------------#
+    # ------------------------------------------------------------------------------#
     # seed the randomness
-    #------------------------------------------------------------------------------#
+    # ------------------------------------------------------------------------------#
     seed = 2021
     random.seed(seed)
     torch.manual_seed(seed)
@@ -307,175 +324,173 @@ def main():
     sampler = TPESampler(seed=seed)
     max_evals = 1
 
-    #------------------------------------------------------------------------------#
+    # ------------------------------------------------------------------------------#
     # Read the input image file
-    #------------------------------------------------------------------------------#
-    #args['image_file'] = 'IndianPines'
-    args['image_file'] = 'SalinasA_mod'
+    # ------------------------------------------------------------------------------#
+    # args['image_file'] = 'IndianPines'
+    args["image_file"] = "SalinasA_mod"
 
-    #------------------------------------------------------------------------------#
+    # ------------------------------------------------------------------------------#
     # Specify the features
-    #------------------------------------------------------------------------------#
-    args['n_cl'] = 7 #6 #16
-    args['mnf_features'] = 16 #6
-    args['latent_dim'] = 10
-    args['ignore_label_inside'] = 0
-    args['ignore_label'] = None
-    args['use_mnf'] = False
-    args['use_pca'] = False
-    args['spatial_coord'] = False
-    #--------------------------------------------------------------------------------#
+    # ------------------------------------------------------------------------------#
+    args["n_cl"] = 7  # 6 #16
+    args["mnf_features"] = 16  # 6
+    args["latent_dim"] = 10
+    args["ignore_label_inside"] = 0
+    args["ignore_label"] = None
+    args["use_mnf"] = False
+    args["use_pca"] = False
+    args["spatial_coord"] = False
+    # --------------------------------------------------------------------------------#
     # check and create a folder to store all the data and figure
-    #--------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------#
 
-    directory =f'{args["image_file"]}'
-    current_directory = os.path.expandvars('${OUTPUT_DIR}/segmentation/vade-tv')
-    final_directory = os.path.join(current_directory+'/', directory)
+    directory = f'{args["image_file"]}'
+    current_directory = os.path.expandvars("${OUTPUT_DIR}/segmentation/vade-tv")
+    final_directory = os.path.join(current_directory + "/", directory)
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
-    args['final_directory'] = final_directory
+    args["final_directory"] = final_directory
 
-    #--------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------#
     # read data from the source
-    #--------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------#
     data_path = f'$DATA_DIR/segmentation/{args["image_file"]}/{args["image_file"]}.nc'
-    im, gt, _, args['gt_file'] = read_data(os.path.expandvars(data_path))
+    im, gt, _, args["gt_file"] = read_data(os.path.expandvars(data_path))
 
-
-    #------------------------------------------------------------------------------#
+    # ------------------------------------------------------------------------------#
     # apply MNF for denoising
-    #------------------------------------------------------------------------------#
-    if args['use_mnf']:
-        print('Denoise data with MNF...')
+    # ------------------------------------------------------------------------------#
+    if args["use_mnf"]:
+        print("Denoise data with MNF...")
         sig = calc_stats(im)
-        noise_dir = 'lowerright'
+        noise_dir = "lowerright"
         noise = noise_from_diffs(im, direction=noise_dir)
         mnfr = mnf(sig, noise)
-        im = mnfr.reduce(im, num=args['mnf_features'])
-        args['im'] = rescale_intensity(im, out_range=(0.0, 1.0))
-        print('Finished denoising of data with MNF.')
-    #------------------------------------------------------------------------------#
+        im = mnfr.reduce(im, num=args["mnf_features"])
+        args["im"] = rescale_intensity(im, out_range=(0.0, 1.0))
+        print("Finished denoising of data with MNF.")
+    # ------------------------------------------------------------------------------#
     # principal component analysis
-    #------------------------------------------------------------------------------#
-    if args['use_pca']:
-        print('Data with PCA ...')
-        data_flat = im.reshape(im.shape[0]*im.shape[1],-1)
+    # ------------------------------------------------------------------------------#
+    if args["use_pca"]:
+        print("Data with PCA ...")
+        data_flat = im.reshape(im.shape[0] * im.shape[1], -1)
         pca = PCA(n_components=0.9999)
         data_pca = pca.fit_transform(data_flat)
-        im = data_pca.reshape(im.shape[0],im.shape[1],data_pca.shape[1])
-        print('Finished dimenionality reduction of data with PCA')
-    #------------------------------------------------------------------------------#
+        im = data_pca.reshape(im.shape[0], im.shape[1], data_pca.shape[1])
+        print("Finished dimenionality reduction of data with PCA")
+    # ------------------------------------------------------------------------------#
     # adding spatial value of pixel
-    #------------------------------------------------------------------------------#
-    if args['spatial_coord']:
-        dummy_x=(np.arange(im.shape[0])/(im.shape[0]-1)).reshape((im.shape[0],1))
-        dummy_y=(np.arange(im.shape[1])/(im.shape[1]-1))
-        dummy_zero=np.zeros((im.shape[0],im.shape[1]))
+    # ------------------------------------------------------------------------------#
+    if args["spatial_coord"]:
+        dummy_x = (np.arange(im.shape[0]) / (im.shape[0] - 1)).reshape((im.shape[0], 1))
+        dummy_y = np.arange(im.shape[1]) / (im.shape[1] - 1)
+        dummy_zero = np.zeros((im.shape[0], im.shape[1]))
         norm_x_cor = dummy_zero + dummy_x
         norm_y_cor = dummy_zero + dummy_y
-        im=np.dstack((im,norm_x_cor))
-        im=np.dstack((im,norm_y_cor))
+        im = np.dstack((im, norm_x_cor))
+        im = np.dstack((im, norm_y_cor))
 
-    args['im'] = im
-    args['gt'] = gt
-    args['data_dim'] = im.shape[-1]
-    args['fd_inv_stepsize'] = max(im.shape[1],im.shape[0])
-    #-----------------------------------------------------------------------------#
+    args["im"] = im
+    args["gt"] = gt
+    args["data_dim"] = im.shape[-1]
+    args["fd_inv_stepsize"] = max(im.shape[1], im.shape[0])
+    # -----------------------------------------------------------------------------#
     # add the right and bottom part of the image to create a new data strucutre
     # so that we can use the variational method
 
-    #comment out the line with # for getting zero padding on right and bottom
-    #-----------------------------------------------------------------------------#
+    # comment out the line with # for getting zero padding on right and bottom
+    # -----------------------------------------------------------------------------#
     im_with_right_and_below = np.zeros((im.shape[0] * im.shape[1], 3 * im.shape[2]))
     for i in range(im.shape[0]):
         for j in range(im.shape[1]):
             if (j < (im.shape[1] - 1)) and (i < (im.shape[0] - 1)):
-                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
-                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j + 1, :]
-                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i + 1, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, 0 : im.shape[2]] = im[i, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, im.shape[2] : 2 * im.shape[2]] = im[i, j + 1, :]
+                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2] : 3 * im.shape[2]] = im[i + 1, j, :]
             elif (j == (im.shape[1] - 1)) and (i < (im.shape[0] - 1)):
-                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
-                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j, :] #
-                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i + 1, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, 0 : im.shape[2]] = im[i, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, im.shape[2] : 2 * im.shape[2]] = im[i, j, :]  #
+                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2] : 3 * im.shape[2]] = im[i + 1, j, :]
             elif (j < (im.shape[1] - 1)) and (i == (im.shape[0] - 1)):
-                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
-                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j + 1, :]
-                im_with_right_and_below[i * im.shape[1] + j, 2*im.shape[2]:3 * im.shape[2]] = im[i, j, :] #
+                im_with_right_and_below[i * im.shape[1] + j, 0 : im.shape[2]] = im[i, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, im.shape[2] : 2 * im.shape[2]] = im[i, j + 1, :]
+                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2] : 3 * im.shape[2]] = im[i, j, :]  #
             else:
-                im_with_right_and_below[i * im.shape[1] + j, 0:im.shape[2]] = im[i, j, :]
-                im_with_right_and_below[i * im.shape[1] + j, im.shape[2]:2 * im.shape[2]] = im[i, j, :] #
-                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2]:3 * im.shape[2]] = im[i, j, :] #
+                im_with_right_and_below[i * im.shape[1] + j, 0 : im.shape[2]] = im[i, j, :]
+                im_with_right_and_below[i * im.shape[1] + j, im.shape[2] : 2 * im.shape[2]] = im[i, j, :]  #
+                im_with_right_and_below[i * im.shape[1] + j, 2 * im.shape[2] : 3 * im.shape[2]] = im[i, j, :]  #
 
-    #--------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------#
     # remove pixels with ignore label
-    #--------------------------------------------------------------------------------#
+    # --------------------------------------------------------------------------------#
 
-    if args['ignore_label'] is None:
-        #pxs = im.reshape((-1, im.shape[-1]))
+    if args["ignore_label"] is None:
+        # pxs = im.reshape((-1, im.shape[-1]))
         pxs = im_with_right_and_below
         lbs = np.ravel(gt)
     else:
-        #pxs = im[gt != args['ignore_label']]
-        #lbs = gt[gt != args['ignore_label']]
+        # pxs = im[gt != args['ignore_label']]
+        # lbs = gt[gt != args['ignore_label']]
         pxs = im_with_right_and_below
         lbs = np.ravel(gt)
-        index = lbs!= args['ignore_label']
+        index = lbs != args["ignore_label"]
         lbs = lbs[index]
         pxs = pxs[index]
-    #----------------------------------------------------------------------------------#
+    # ----------------------------------------------------------------------------------#
     # to avoid problems with segment numbering, rebuild it if ground truth is given
-    #----------------------------------------------------------------------------------#
+    # ----------------------------------------------------------------------------------#
     if lbs is not None:
         lbs = rebuild_segment_numbering(lbs)
 
-    args['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
-    ds = HSIDataset(pxs, lbs, args['device'])
+    args["device"] = "cuda" if torch.cuda.is_available() else "cpu"
+    ds = HSIDataset(pxs, lbs, args["device"])
 
-    args['dataloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=True, num_workers=0, pin_memory=False)
-    args['validloader'] = DataLoader(ds, batch_size=args['batch_size'], shuffle=False, num_workers=0, pin_memory=False)
-    print('Initialized dataset and dataloader.')
+    args["dataloader"] = DataLoader(ds, batch_size=args["batch_size"], shuffle=True, num_workers=0, pin_memory=False)
+    args["validloader"] = DataLoader(ds, batch_size=args["batch_size"], shuffle=False, num_workers=0, pin_memory=False)
+    print("Initialized dataset and dataloader.")
 
-    study=optuna.create_study(direction="minimize",study_name="optuna_test",sampler=sampler)
-    study.optimize(partial(optuna_opt,args=args,lam_lower=lam_lower,lam_upper=lam_upper),n_trials=max_evals)
+    study = optuna.create_study(direction="minimize", study_name="optuna_test", sampler=sampler)
+    study.optimize(partial(optuna_opt, args=args, lam_lower=lam_lower, lam_upper=lam_upper), n_trials=max_evals)
 
-    
-    #best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
-                #rstate=np.random.default_rng(seed_hyp), trials=trials)
+    # best = fmin(fn=hyper_opt, space=args, algo=rand.suggest, max_evals=max_evals,
+    # rstate=np.random.default_rng(seed_hyp), trials=trials)
     print("Best trial:")
-    best=study.best_trial
+    best = study.best_trial
     print("value :", best.value)
-    with open(f'{final_directory}/optuna_best.txt', 'a', encoding='utf-8') as f:
+    with open(f"{final_directory}/optuna_best.txt", "a", encoding="utf-8") as f:
         f.write(str(best.values))
 
-    #create a panda database with various column
+    # create a panda database with various column
     # columna name 'value' is the output value which we want to optimize
     # parameter which we want to optimize has column name 'regularizer' for our case
-    df=pd.DataFrame(study.trials_dataframe())
-
+    df = pd.DataFrame(study.trials_dataframe())
 
     # TODO: Fix problem with the case when a fixed lambda is given. In that case only loss and not lambda are stored in df.
 
     # append results of hyperopt run to csv file
     output_optuna = f'{final_directory}/opt_{args["image_file"]}.csv'
-    df.to_csv(output_optuna, sep=" ", index=False, mode='a', header=False)
+    df.to_csv(output_optuna, sep=" ", index=False, mode="a", header=False)
 
     # read the full hyperopt results file and update the plot
-    #df = pd.read_csv(output_optuna, sep=' ', header=0)
+    # df = pd.read_csv(output_optuna, sep=' ', header=0)
 
     # Name of parameter is written as params_name_of_parameter
-    list_columnn=["value","params_regularizer"]
-    data_plot=df[list_columnn]
-    #print(data_plot)
+    list_columnn = ["value", "params_regularizer"]
+    data_plot = df[list_columnn]
+    # print(data_plot)
     fig, ax = plt.subplots(len(data_plot.columns) - 1)
     for i in range(1, len(data_plot.columns)):
         if len(data_plot.columns) - 1 == 1:
-            ax.scatter(data_plot[data_plot.columns[i]], df['value'])
-            ax.set(xlabel=data_plot.columns[i], ylabel='OA')
+            ax.scatter(data_plot[data_plot.columns[i]], df["value"])
+            ax.set(xlabel=data_plot.columns[i], ylabel="OA")
         else:
-            ax[i - 1].scatter(data_plot[data_plot.columns[i]], df['value'])
-            ax[i - 1].set(xlabel=data_plot.columns[i], ylabel='OA')
+            ax[i - 1].scatter(data_plot[data_plot.columns[i]], df["value"])
+            ax[i - 1].set(xlabel=data_plot.columns[i], ylabel="OA")
 
-    fig.savefig(f'{final_directory}/lambda_vs_OA.png')
+    fig.savefig(f"{final_directory}/lambda_vs_OA.png")
+
 
 if __name__ == "__main__":
     main()
