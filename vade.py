@@ -434,7 +434,7 @@ class VaDE(nn.Module):
 
 
     def fit(self, trainloader, validloader, lr=0.002, num_epochs=10,
-        visualize=True, anneal=False, model=None):
+        visualize=True, anneal=False, model=None, pretrain_model=None):
         ''' train model '''
         #--------------------------------------------------------------------------------#
         # initial optimizer. the filter function only passes the parameters to Adam that need gradient
@@ -484,6 +484,7 @@ class VaDE(nn.Module):
         grad_angle_list_first = []
         previous_grad = None ## initialize dummy previous gradient to avoid error
         first_grad = []
+
         for epoch in range(num_epochs):
             self.train()
             #--------------------------------------------------------------------------------#
@@ -502,6 +503,11 @@ class VaDE(nn.Module):
                 optimizer.zero_grad()
                 inputs = Variable(inputs)
 
+                ## Replace current inputs with the denoise input
+                if pretrain_model is not None:
+                    _, denoised_x = pretrain_model.forward(inputs)
+                    inputs = denoised_x
+                    
                 if self.lambdas != 0:
                     data_dim =int(inputs.shape[1] / 3)
                     z, mu, logvar, mu_x, logvar_x = self.forward(inputs[:, 0:data_dim])

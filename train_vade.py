@@ -13,7 +13,7 @@ from attr import field
 import yaml
 import argparse
 from datetime import datetime
-import logging
+import shutil
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -431,6 +431,14 @@ def train_prevade(args, pretrain_logfile_path):
     prevade.save_model(save_location)
     return save_location
 
+# def pretrain_output(args, save_location, input):
+#     prevade = PreVade(spectral_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
+#                     encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1], spatial=args['spatial_coord'])
+#     prevade.to(args['device'])
+#     prevade.load_model(save_location)
+#     z, reconstructed_x = prevade.forward(input)
+#     return reconstructed_x
+
 def train_vade(args):
     ''' main function '''
     # TODO: total variation plus patches not implemented yet!    
@@ -504,6 +512,11 @@ def train_vade(args):
     if args['pretrain'] == True:
         pretrain_location = train_prevade(args, pretrain_logfile_path)
 
+    prevade = PreVade(spectral_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
+                    encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1], spatial=args['spatial_coord'])
+    prevade.to(args['device'])
+    prevade.load_model(pretrain_location)
+
     with Tee(logfile_path):
         print(f'Running training on {os.uname()[1]}')
         print(f'Working on image {args["image_file"]}...')
@@ -545,11 +558,13 @@ def train_vade(args):
         # load pretrained models if provided
         #------------------------------------------------------------------------------------#
 
+        #### DON"T LOAD PRETRAIN WEIGHTS INTO VADE MODEL, BUT USE IT AS DENOISING IN fit() function
         if pretrain_location is not None:
-            print(f"Load model from {pretrain_location}...")
-            vade.load_model(pretrain_location)
-            print('Loaded pretrained network weights.')
-            os.remove(pretrain_location)
+            # print(f"Load model from {pretrain_location}...")
+            # vade.load_model(pretrain_location)
+            # print('Loaded pretrained network weights.')
+            shutil.move(pretrain_location, exp_dir + '/pretrain.pt')
+        
 
         ### To check pretraining weights
         ### vade.load_state_dict(torch.load("/home/chagnaa/output/segmentation/vade/pure/IndianPines/Study_reg0_spat1_pretrain0/2023-7-26-11-25-29-ep500_ldim10_reg0_0_spat1/vade_params-ep500_ldim10_reg0_0_spat1.pt"))
@@ -562,7 +577,7 @@ def train_vade(args):
 
         print('Fit the model...')
         y_pred = vade.fit(dataloader, validloader, lr=args['lr'], num_epochs=args['epochs'],
-                          anneal=False, visualize=args['visualize'], model=vade)
+                          anneal=False, visualize=args['visualize'], model=vade, pretrain_model=prevade)
 
         print('Save found parameters...')
         if args['save']:
