@@ -46,17 +46,6 @@ torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 torch.use_deterministic_algorithms(True) 
 
-def angle_between_vectors(v1, v2):
-    dot_product = np.dot(v1, v2)
-    norm_v1 = np.linalg.norm(v1)
-    norm_v2 = np.linalg.norm(v2)
-    
-    cos_theta = dot_product / (norm_v1 * norm_v2)
-    radians = np.arccos(cos_theta)
-    degrees = np.degrees(radians)
-    
-    return degrees
-
 def filtered_yaml_dump(args, file):
     with open("./args.yaml", 'r') as f:
         data = yaml.safe_load(f)
@@ -409,14 +398,12 @@ def train_prevade(args, pretrain_logfile_path):
                 ## calculate cur-to-prev gradient comparison
                 if previous_grad is not None:
                     cosine_similarity = torch.dot(current_grad, previous_grad) / (torch.norm(current_grad) * torch.norm(previous_grad))
-                    cosine_similarity = cosine_similarity.cpu()
-                    angle = np.arccos(cosine_similarity) * 180 / np.pi
+                    angle = np.arccos(cosine_similarity.cpu()) * 180 / np.pi
                     grad_angle_list.append(angle.item())
                 previous_grad = current_grad.clone()
                 ## calculate cur-to-first gradient comparison
                 cosine_similarity = torch.dot(current_grad, first_grad) / (torch.norm(current_grad) * torch.norm(first_grad))
-                cosine_similarity = cosine_similarity.cpu()
-                angle = np.arccos(cosine_similarity) * 180 / np.pi
+                angle = np.arccos(cosine_similarity.cpu()) * 180 / np.pi
                 grad_angle_list_first.append(angle.item())
                 grad_norm_list.append(grad_norm.item())
                 #######################################################

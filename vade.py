@@ -536,12 +536,12 @@ class VaDE(nn.Module):
                 ## calculate cur-to-prev gradient comparison
                 if previous_grad is not None:
                     cosine_similarity = torch.dot(current_grad, previous_grad) / (torch.norm(current_grad) * torch.norm(previous_grad))
-                    angle = np.arccos(cosine_similarity) * 180 / np.pi
+                    angle = np.arccos(cosine_similarity.cpu()) * 180 / np.pi
                     grad_angle_list.append(angle.item())
                 previous_grad = current_grad.clone()
                 ## calculate cur-to-first gradient comparison
                 cosine_similarity = torch.dot(current_grad, first_grad) / (torch.norm(current_grad) * torch.norm(first_grad))
-                angle = np.arccos(cosine_similarity) * 180 / np.pi
+                angle = np.arccos(cosine_similarity.cpu()) * 180 / np.pi
                 grad_angle_list_first.append(angle.item())
                 grad_norm_list.append(grad_norm.item())
                 #######################################################
