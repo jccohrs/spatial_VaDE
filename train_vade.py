@@ -498,13 +498,13 @@ def train_vade(args):
     # if pretraining is enabled, run pre-training
     pretrain_logfile_path = f'{exp_dir}/output-pretrain-{exp_spec_path}.log'
     pretrain_location = None
+    prevade = None
     if args['pretrain'] == True:
         pretrain_location = train_prevade(args, pretrain_logfile_path)
-
-    prevade = PreVade(spectral_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
-                    encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1], spatial=args['spatial_coord'])
-    prevade.to(args['device'])
-    prevade.load_model(pretrain_location)
+        prevade = PreVade(spectral_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
+                        encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1], spatial=args['spatial_coord'])
+        prevade.to(args['device'])
+        prevade.load_model(pretrain_location)
 
     with Tee(logfile_path):
         print(f'Running training on {os.uname()[1]}')
