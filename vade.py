@@ -91,7 +91,6 @@ def log_likelihood_samplesImean_sigma(samples, mu, logvar):
     return -0.5 * log2pi * samples.size()[1] \
            - torch.sum(0.5 * (samples - mu) ** 2 / torch.exp(logvar) + 0.5 * logvar, 1)
 
-
 class VaDE(nn.Module):
     ''' class implements the VaDE model '''
     def __init__(self, input_dim=200, z_dim=10, n_centroids=10,
@@ -448,8 +447,16 @@ class VaDE(nn.Module):
         valid_loss = 0.0
         z_all = []
         y = []
+        denoised_input = torch.empty(0).to('cuda')
+        
         for _, (inputs, labels) in enumerate(validloader):
             inputs = Variable(inputs)
+
+            ## Replace current inputs with the denoise input
+            if pretrain_model is not None:
+                _, denoised_x = pretrain_model.forward(inputs)
+                inputs = denoised_x
+                denoised_input = torch.cat((denoised_input, denoised_x), dim=0)
 
             if self.lambdas != 0:
                 data_dim = int(inputs.shape[1] / 3)
@@ -465,6 +472,9 @@ class VaDE(nn.Module):
             y.append(labels.cpu().numpy())
 
             valid_loss += loss.data.item() * len(inputs)
+
+        reshaped_denoised_input = denoised_input.view(145,145,200).to('cpu').detach().numpy()
+        saveArrayAsNetCDF(reshaped_denoised_input, f'{self.directory}/denoised_image.nc')
 
         if visualize:
             y = np.concatenate(y)
@@ -561,6 +571,11 @@ class VaDE(nn.Module):
             gamma_all = []
             for _, (inputs, labels) in enumerate(validloader):
                 inputs = Variable(inputs)
+
+                ## Replace current inputs with the denoise input
+                if pretrain_model is not None:
+                    _, denoised_x = pretrain_model.forward(inputs)
+                    inputs = denoised_x
 
                 if self.lambdas != 0:
                     data_dim = int(inputs.shape[1] / 3)
