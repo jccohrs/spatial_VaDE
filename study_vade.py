@@ -6,7 +6,7 @@ hyperseed = 1337
 rng = np.random.default_rng(hyperseed)
 low = 0
 high = 1e6
-seeds = rng.integers(low=low, high=high, size=1)
+seeds = rng.integers(low=low, high=high, size=100)
 
 def create_study_folder():
     directory =f'{args["image_file"]}'

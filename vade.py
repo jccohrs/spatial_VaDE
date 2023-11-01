@@ -455,8 +455,10 @@ class VaDE(nn.Module):
             ## Replace current inputs with the denoise input
             if pretrain_model is not None:
                 _, denoised_x = pretrain_model.forward(inputs)
-                inputs = denoised_x
                 denoised_input = torch.cat((denoised_input, denoised_x), dim=0)
+                # We need to add the spatial information back into the denoised_x
+                last_two_columns = inputs[:, -2:]
+                inputs = torch.cat((denoised_x, last_two_columns), dim=1)
 
             if self.lambdas != 0:
                 data_dim = int(inputs.shape[1] / 3)
@@ -516,7 +518,8 @@ class VaDE(nn.Module):
                 ## Replace current inputs with the denoise input
                 if pretrain_model is not None:
                     _, denoised_x = pretrain_model.forward(inputs)
-                    inputs = denoised_x
+                    last_two_columns = inputs[:, -2:]
+                    inputs = torch.cat((denoised_x, last_two_columns), dim=1)
                     
                 if self.lambdas != 0:
                     data_dim =int(inputs.shape[1] / 3)
@@ -575,7 +578,8 @@ class VaDE(nn.Module):
                 ## Replace current inputs with the denoise input
                 if pretrain_model is not None:
                     _, denoised_x = pretrain_model.forward(inputs)
-                    inputs = denoised_x
+                    last_two_columns = inputs[:, -2:]
+                    inputs = torch.cat((denoised_x, last_two_columns), dim=1)
 
                 if self.lambdas != 0:
                     data_dim = int(inputs.shape[1] / 3)
