@@ -538,7 +538,7 @@ def train_vade(args):
         vade = VaDE(input_dim=args['data_dim'], z_dim=args['latent_dim'], n_centroids=args['n_cl'],
                 encodeLayer=[500, 500, 2000], decodeLayer=[2000, 500, 500], im_shape=args['im_shape'][:-1],
                 one_by_delta_x=args['fd_inv_stepsize'], regularization=args['regularizer'],
-                directory=exp_dir, ignore_label=args['ignore_label'], spatial=args['spatial_coord'])
+                directory=exp_dir, ignore_label=args['ignore_label'], spatial=args['spatial_coord'], L=args['L'])
         print('Initialized VaDE model.')
         vade.to(args['device'])
         print(f'Pushed model to {args["device"]}.')

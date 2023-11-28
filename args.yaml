@@ -1,7 +1,7 @@
 lr: 0.0001
 batch_size: 100
 epochs: 500
-pretrain: True
+pretrain: False
 regularizer: 0.0
 save: True
 image_file: IndianPines
@@ -14,5 +14,6 @@ patches: False
 patch_size: 5
 use_mnf: False
 use_pca: False
-spatial_coord: True
+spatial_coord: False
 epochs_pretrain: 20
+L: 200

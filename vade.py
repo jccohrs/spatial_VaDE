@@ -96,7 +96,7 @@ class VaDE(nn.Module):
     def __init__(self, input_dim=200, z_dim=10, n_centroids=10,
         encodeLayer=[500, 500,2000], decodeLayer=[2000, 500, 500],
         im_shape=(145, 145), one_by_delta_x=100, regularization=0.01,
-        directory='.', ignore_label=None, spatial=False):
+        directory='.', ignore_label=None, spatial=False, L = 10):
         super(VaDE, self).__init__()
         self.z_dim = z_dim
         self.n_centroids = n_centroids
@@ -106,6 +106,7 @@ class VaDE(nn.Module):
         self.use_cuda = torch.cuda.is_available()
         self.input_dim = input_dim
         self.spatial = spatial
+        self.L = L
 
         #--------------------------------------------------------------------------------#
         # initialize encoder and decoder network
@@ -192,7 +193,7 @@ class VaDE(nn.Module):
 
 
             # GMM fitted on cpu, therefore moving data to cpu is okay.
-            data.append(z.data.cpu().numpy())
+            data.append(z.mean(dim=0).data.cpu().numpy())
 
         data = np.concatenate(data)
 
@@ -215,11 +216,17 @@ class VaDE(nn.Module):
         ''' sample an auxiliary variable and reparameterize it '''
         # TODO: Check for correctness. does it work with batches of data?
         if self.training:
-            std = logvar.mul(0.5).exp_()
-            eps = Variable(std.data.new(std.size()).normal_())
-            return eps.mul(std).add_(mu)
+            std = logvar.mul(0.5).exp_() # [100, 10]
+            eps = Variable(std.data.new(self.L, *std.size()).normal_()) # [L, 100, 10]
+            ## Ex: L = 2, batch_size = 1, latent_dim = 3
+            ## [[1, 2, 3]] std [1, 3]
+            ## [[4, 5, 6]] mu [1, 3]
+            ## [[1, 2, 3], [2, 4, 6]] eps [2, 3]
+            ## [[1, 4, 9], [2, 8, 18]] eps*std [2, 3] + [[4, 5, 6], [4, 5, 6]] mu [2, 3]  = [[5, 9, 15], [8, 15, 24]]
+            eps_l = eps.mul(std).add_(mu) # [L, 100, 10]
+            return eps_l
         else:
-            return mu
+            return mu.unsqueeze(0).expand(self.L, -1, -1)
 
     def decode(self, z):
         ''' decode a latent vector back to the original space '''
@@ -234,14 +241,19 @@ class VaDE(nn.Module):
 
     def get_gamma(self, z):
         ''' compute p(c | z) as approximation to q(c | x) '''
-        z_t = z.unsqueeze(2)
+        z_t = z.unsqueeze(3)
 
         p_c_z = torch.exp(torch.log(softmax(self.prior_init, dim=0)) \
             - torch.sum(0.5 * torch.log(2 * math.pi * torch.exp(self.log_var_init)) \
-            + (z_t - self.mean_init)**2 / (2 * torch.exp(self.log_var_init)), dim=1)) + 1e-10 # NxK
+            + (z_t - self.mean_init)**2 / (2 * torch.exp(self.log_var_init)), dim=2)) + 1e-10 # NxK
 
-        gamma = p_c_z / torch.sum(p_c_z, dim=1, keepdim=True)
-        return gamma
+        gamma_l = p_c_z / torch.sum(p_c_z, dim=2, keepdim=True)
+        gamma_num = torch.exp(1- 1/self.L*torch.sum(torch.log(gamma_l), dim=0))
+        gamma_denom = torch.sum(1/gamma_num, dim=1)
+        gamma_denom = gamma_denom.unsqueeze(1)
+        gamma = 1/(gamma_num*gamma_denom)
+        
+        return gamma 
 
     def loss_function(self, inputs, mu_x, logvar_x, z, z_mean, z_log_var, z_right=None, z_bottom=None):
         ''' Function computes the loss of the network '''
@@ -256,24 +268,29 @@ class VaDE(nn.Module):
         else:
             x = inputs
 
-        #--------------------------------------------------------------------------------#
+        #-------------------------------------------------------------------------------#
         # 1st term in equation 9 // also the 1st line in equation 12
         #--------------------------------------------------------------------------------#
         if self.spatial:
             # if spatial coordinate is encoded, only reconstruct spectrum
-            log_pxz = 0.5 * torch.sum(math.log(2 * math.pi) + logvar_x + \
-                      (x[:, :-2] - mu_x)**2 / torch.exp(logvar_x), dim=1)
+            log_pxz = 0.5 * torch.sum(math.log(2 * math.pi) + 1/self.L * torch.sum(logvar_x, dim=0) + \
+                    1/self.L*torch.sum((x[:, :-2] - mu_x)**2 / torch.exp(logvar_x), dim=0), dim=1)
+            
         else:
-            log_pxz = 0.5 * torch.sum(math.log(2 * math.pi) + logvar_x + (x - mu_x)**2 / torch.exp(logvar_x), dim=1)
+            ## mu_x, logvar_x [100, 10] -> L=5 [100, 5, 10]
+            ## sum(mu_x), sum(logvar_x) [100, 10]
+            log_pxz = 0.5 * torch.sum(math.log(2 * math.pi) + 1/self.L * torch.sum(logvar_x, dim=0) + 1/self.L*torch.sum((x - mu_x)**2 / torch.exp(logvar_x), dim=0), dim=1)
 
+        import pdb
+        pdb.set_trace()
         #--------------------------------------------------------------------------------#
         # 2nd term in equation 9  // also the 2nd line in equation 12
         #--------------------------------------------------------------------------------#
 
-        logpzc = torch.sum(0.5 * gamma * torch.sum(self.log_var_init \
+        logpzc = torch.sum(0.5 * gamma * torch.sum(math.log(2 * math.pi) + self.log_var_init \
             + torch.exp(z_log_var_t) /torch.exp(self.log_var_init) \
             + (z_mean_t - self.mean_init)**2 / torch.exp(self.log_var_init), dim=1), dim=1)
-
+        
         #--------------------------------------------------------------------------------#
         # remaining 3 terms in equation is summed up in last line of equation 12
         #--------------------------------------------------------------------------------#
@@ -286,13 +303,13 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # 4th term in equation 9
         #--------------------------------------------------------------------------------#
-        qentropy = -0.5 * torch.sum(1 + z_log_var_t, 1)
+        qentropy = 0.5 * torch.sum(1 + z_log_var_t, 1)
+        qentropy = torch.squeeze(qentropy)
 
         #--------------------------------------------------------------------------------#
         # 5th term in equation 9
         #--------------------------------------------------------------------------------#
         logqcx = torch.sum(torch.log(torch.clamp(gamma, min=1e-10)) * gamma, 1)
-
 
         #--------------------------------------------------------------------------------#
         # Regularize with gamma=q(c|x) -> q(c|g(x)) where g(x) is our spectra
@@ -312,7 +329,6 @@ class VaDE(nn.Module):
                 + self.lambdas * torch.mean(torch.sum(norm_qcx, 1))
         else:
             loss = torch.mean(log_pxz + logpzc + logpc + qentropy + logqcx)
-
 
         return loss
 
@@ -405,8 +421,6 @@ class VaDE(nn.Module):
                 loss = self.loss_function(inputs, mu_x, logvar_x, z, mu, logvar)
 
             z_all.append(z.detach().cpu().numpy())
-
-
             valid_loss += loss.data.item() * len(inputs)
 
             #--------------------------------------------------------------------------------#
@@ -420,7 +434,7 @@ class VaDE(nn.Module):
             #--------------------------------------------------------------------------------#
             y.append(labels.cpu().numpy())
             y_pred.append(torch.argmax(gamma, dim=1).cpu().numpy())
-
+        
         y_pred = np.concatenate(y_pred)
         y = np.concatenate(y)
         z_all = np.concatenate(z_all)
@@ -475,12 +489,12 @@ class VaDE(nn.Module):
 
             valid_loss += loss.data.item() * len(inputs)
 
-        reshaped_denoised_input = denoised_input.view(145,145,200).to('cpu').detach().numpy()
-        saveArrayAsNetCDF(reshaped_denoised_input, f'{self.directory}/denoised_image.nc')
+        # reshaped_denoised_input = denoised_input.view(145,145,200).to('cpu').detach().numpy()
+        # saveArrayAsNetCDF(reshaped_denoised_input, f'{self.directory}/denoised_image.nc')
 
         if visualize:
             y = np.concatenate(y)
-            z_all = np.concatenate(z_all)
+            z_all = np.concatenate(z_all, axis=1)
             self.visualize_latent_space(z_all, y, epoch=-1)
 
         #--------------------------------------------------------------------------------#
@@ -609,8 +623,9 @@ class VaDE(nn.Module):
 
             y = np.concatenate(y)
             y_pred = np.concatenate(y_pred)
-            z_all = np.concatenate(z_all)
+            z_all = np.concatenate(z_all, axis=1)
             gamma_all = np.concatenate(gamma_all)
+       
             acc = cluster_acc(y_pred, y, self.ignore_label)
 
             print(f'#Epoch {epoch:3d}: Gradient Norm: {grad_norm.item()}, lr: {epoch_lr:.5f}, Train Loss: {train_loss / len(trainloader.dataset):.5f}, ' \
