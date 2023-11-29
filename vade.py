@@ -281,8 +281,6 @@ class VaDE(nn.Module):
             ## sum(mu_x), sum(logvar_x) [100, 10]
             log_pxz = 0.5 * torch.sum(math.log(2 * math.pi) + 1/self.L * torch.sum(logvar_x, dim=0) + 1/self.L*torch.sum((x - mu_x)**2 / torch.exp(logvar_x), dim=0), dim=1)
 
-        import pdb
-        pdb.set_trace()
         #--------------------------------------------------------------------------------#
         # 2nd term in equation 9  // also the 2nd line in equation 12
         #--------------------------------------------------------------------------------#
@@ -303,7 +301,7 @@ class VaDE(nn.Module):
         #--------------------------------------------------------------------------------#
         # 4th term in equation 9
         #--------------------------------------------------------------------------------#
-        qentropy = 0.5 * torch.sum(1 + z_log_var_t, 1)
+        qentropy = -0.5 * torch.sum(1 + z_log_var_t, 1)
         qentropy = torch.squeeze(qentropy)
 
         #--------------------------------------------------------------------------------#

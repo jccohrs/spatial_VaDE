@@ -16,4 +16,4 @@ use_mnf: False
 use_pca: False
 spatial_coord: False
 epochs_pretrain: 20
-L: 200
+L: 12
