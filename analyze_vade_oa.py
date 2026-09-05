@@ -6,12 +6,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 ########## wrong regularizer
-df1 = pd.read_csv('/Users/jan/sciebo/output/segmentation/vade-tv/IndianPines_w/test_scores_100_wrong_reg.csv', index_col=False, header=None, names=['reg', 'oa'], sep=',')
+df1 = pd.read_csv(os.path.expandvars('${OUTPUT_DIR}') + '/segmentation/vade-tv/IndianPines_w/test_scores_100_wrong_reg.csv', index_col=False, header=None, names=['reg', 'oa'], sep=',')
 
 # plt.boxplot(df['oa'])
 
 ########## without regularizer
-rootdir = '/Users/jan/sciebo/output/segmentation/vade-tv/IndianPines_wo'
+rootdir = os.path.expandvars('${OUTPUT_DIR}') + '/segmentation/vade-tv/IndianPines_wo'
 
 oa = np.zeros((100, 2))
 i = 0
