@@ -4,7 +4,7 @@ This repository contains a modification of the model *Variational Deep Embedding
 We built upon the code basis from [https://github.com/eelxpeng/UnsupervisedDeepLearning-Pytorch](https://github.com/eelxpeng/UnsupervisedDeepLearning-Pytorch), which is a PyTorch implementation of the original model, for which the code was published at [https://github.com/slim1017/VaDE](https://github.com/slim1017/VaDE).
 
 The idea was to leverage VaDE for hyperspectral image segmentation by informing the clustering about the spatial information given by the image domain.
-To this end, we tried different things:
+To this end, we investigate different ideas:
 
 - adding the total variation (TV) to the objective function of VaDE to enforce neighboring pixels having the same class;
 - using the learned latent space embeddings from the pretraining as input for the VaDE;
