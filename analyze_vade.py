@@ -13,6 +13,7 @@
 # Default initialization is to draw random values from $$\mathcal{U}(-\sqrt{k}, \sqrt{k})$$ where $$k = \frac{1}{infeatures}$$.
 
 # %%
+import os
 import numpy as np
 from math import sqrt
 from vade import VaDE
@@ -23,9 +24,9 @@ import matplotlib.pyplot as plt
 # #### SalinasA
 
 # %%
-im = read_image('/Users/jan/sciebo/data/segmentation/SalinasA/SalinasA.nc')
+im = read_image(os.path.expandvars('${DATA_DIR}') + '/segmentation/SalinasA/SalinasA.nc')
 vade = VaDE(204, 10, 6, [500,500,2000], [2000,500,500], im.shape[:-1], 1, 0, '.', 0, True)
-vade.load_model('/Users/jan/sciebo/output/segmentation/vade/pure/SalinasA/2022-7-1-17-40-58-ep1000_ldim10_reg0_spat1/vade_params-ep1000_ldim10_reg0_spat1.pt')
+vade.load_model(os.path.expandvars('${OUTPUT_DIR}') + '/segmentation/vade/pure/SalinasA/2022-7-1-17-40-58-ep1000_ldim10_reg0_spat1/vade_params-ep1000_ldim10_reg0_spat1.pt')
 spatial_enc = vade.spatial_enc[0].weight.detach().numpy()
 spectral_enc = vade.spectral_enc[0].weight.detach().numpy()
 print(f'Min weight spatial encoder: {spatial_enc.min()}')
@@ -50,9 +51,9 @@ plt.matshow(spatial_enc)
 # Range of weights when no perimeter is used:
 
 # %%
-im = read_image('/Users/jan/sciebo/data/segmentation/IndianPines/IndianPines.nc')
+im = read_image(os.path.expandvars('${DATA_DIR}') + '/segmentation/IndianPines/IndianPines.nc')
 vade = VaDE(im.shape[-1], 10, 16, [500,500,2000], [2000,500,500], im.shape[:-1], 1, 0, '.', 0, True)
-vade.load_model('/Users/jan/sciebo/output/segmentation/vade/pure/IndianPines/2022-7-4-14-39-13-ep1500_ldim10_reg0_spat1/vade_params-ep1500_ldim10_reg0_spat1.pt')
+vade.load_model(os.path.expandvars('${OUTPUT_DIR}') + '/segmentation/vade/pure/IndianPines/2022-7-4-14-39-13-ep1500_ldim10_reg0_spat1/vade_params-ep1500_ldim10_reg0_spat1.pt')
 spatial_enc = vade.spatial_enc[0].weight.detach().numpy()
 spectral_enc = vade.spectral_enc[0].weight.detach().numpy()
 print(f'Min weight spatial encoder: {spatial_enc.min()}')
@@ -70,9 +71,9 @@ print(f'Initial weights of spectral encoder drawn uniformly from interval: ({-sq
 # Range of weights when perimeter with $$\lambda = 0.01$$ is used:
 
 # %%
-im = read_image('/Users/jan/sciebo/data/segmentation/IndianPines/IndianPines.nc')
+im = read_image(os.path.expandvars('${DATA_DIR}') + '/segmentation/IndianPines/IndianPines.nc')
 vade = VaDE(im.shape[-1], 10, 16, [500,500,2000], [2000,500,500], im.shape[:-1], 1, 0, '.', 0, True)
-vade.load_model('/Users/jan/sciebo/output/segmentation/vade/tv/IndianPines/2022-7-11-17-21-27-ep1000_ldim10_reg0_01_spat1/vade_params-ep1000_ldim10_reg0_01_spat1.pt')
+vade.load_model(os.path.expandvars('${OUTPUT_DIR}') + '/segmentation/vade/tv/IndianPines/2022-7-11-17-21-27-ep1000_ldim10_reg0_01_spat1/vade_params-ep1000_ldim10_reg0_01_spat1.pt')
 spatial_enc = vade.spatial_enc[0].weight.detach().numpy()
 spectral_enc = vade.spectral_enc[0].weight.detach().numpy()
 print(f'Min weight spatial encoder: {spatial_enc.min()}')
@@ -90,9 +91,9 @@ print(f'Initial weights of spectral encoder drawn uniformly from interval: ({-sq
 # Range of weights when perimeter with $$\lambda = 0.05$$ is used:
 
 # %%
-im = read_image('/Users/jan/sciebo/data/segmentation/IndianPines/IndianPines.nc')
+im = read_image(os.path.expandvars('${DATA_DIR}') + '/segmentation/IndianPines/IndianPines.nc')
 vade = VaDE(im.shape[-1], 10, 16, [500,500,2000], [2000,500,500], im.shape[:-1], 1, 0, '.', 0, True)
-vade.load_model('/Users/jan/sciebo/output/segmentation/vade/tv/IndianPines/2022-7-12-9-14-56-ep1000_ldim10_reg0_05_spat1/vade_params-ep1000_ldim10_reg0_05_spat1.pt')
+vade.load_model(os.path.expandvars('${OUTPUT_DIR}') + '/segmentation/vade/tv/IndianPines/2022-7-12-9-14-56-ep1000_ldim10_reg0_05_spat1/vade_params-ep1000_ldim10_reg0_05_spat1.pt')
 spatial_enc = vade.spatial_enc[0].weight.detach().numpy()
 spectral_enc = vade.spectral_enc[0].weight.detach().numpy()
 print(f'Min weight spatial encoder: {spatial_enc.min()}')
@@ -110,9 +111,9 @@ print(f'Initial weights of spectral encoder drawn uniformly from interval: ({-sq
 # Range of weights when perimeter with $$\lambda = 0.1$$ is used:
 
 # %%
-im = read_image('/Users/jan/sciebo/data/segmentation/IndianPines/IndianPines.nc')
+im = read_image(os.path.expandvars('${DATA_DIR}') + '/segmentation/IndianPines/IndianPines.nc')
 vade = VaDE(im.shape[-1], 10, 16, [500,500,2000], [2000,500,500], im.shape[:-1], 1, 0, '.', 0, True)
-vade.load_model('/Users/jan/sciebo/output/segmentation/vade/tv/IndianPines/2022-7-11-14-15-4-ep1000_ldim10_reg0_1_spat1/vade_params-ep1000_ldim10_reg0_1_spat1.pt')
+vade.load_model(os.path.expandvars('${OUTPUT_DIR}') + '/segmentation/vade/tv/IndianPines/2022-7-11-14-15-4-ep1000_ldim10_reg0_1_spat1/vade_params-ep1000_ldim10_reg0_1_spat1.pt')
 spatial_enc = vade.spatial_enc[0].weight.detach().numpy()
 spectral_enc = vade.spectral_enc[0].weight.detach().numpy()
 print(f'Min weight spatial encoder: {spatial_enc.min()}')
