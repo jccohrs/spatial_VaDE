@@ -9,7 +9,8 @@ To this end, we tried different things:
 - adding the total variation (TV) to the objective function of VaDE to enforce neighboring pixels having the same class;
 - using the learned latent space embeddings from the pretraining as input for the VaDE;
 - adding a second input layer that gets the pixel indices as input to learn the right weighting between spectral and spatial information;
-- implementing the SGVB estimator for numbers of Monte Carlo samplings $L > 1$ (the original implementation only used $L = 1$).
+- implementing the SGVB estimator for numbers of Monte Carlo samplings $L > 1$ (the original implementation only used $L = 1$);
+- input patches instead of raw spectra to also exploit the information given by the surroundings of the pixels.
 
 The original VaDE model was published and explained in the article:
 
