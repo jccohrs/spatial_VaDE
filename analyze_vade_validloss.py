@@ -8,7 +8,7 @@ import numpy as np
 validloss = np.zeros(100)
 
 ########## without regularizer
-rootdir = '/Users/jan/sciebo/output/segmentation/vade-tv/IndianPines_wo'
+rootdir = os.path.expandvars('${OUTPUT_DIR}') + '/segmentation/vade-tv/IndianPines_wo'
 
 i = 0
 for subdir, dirs, files in os.walk(rootdir):

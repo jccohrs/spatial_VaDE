@@ -5,7 +5,7 @@ Parse training log
 
 Evolved from parse_log.sh
 """
-
+import os
 import re
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -84,7 +84,7 @@ def plot_stats(path, data):
 
 
 def main():
-    d = parse_log('/Users/jan/sciebo/output/segmentation/vade-tv/SalinasA_0_0_025/2022-6-7-14-58-20-ldim10_reg0/output-ldim10_reg0.log')
+    d = parse_log(os.path.expandvars('${OUTPUT_DIR}') + '/segmentation/vade-tv/SalinasA_0_0_025/2022-6-7-14-58-20-ldim10_reg0/output-ldim10_reg0.log')
     plot_stats('/Users/jan/Desktop/plot_stats', d)
 
 if __name__ == "__main__":
