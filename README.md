@@ -1,5 +1,5 @@
 # Spatial VaDE
-
+![Overview of the spatially informed VaDE](vade_overview_final.svg)
 This repository contains a modification of the model *Variational Deep Embedding* (VaDE).
 We built upon the code basis from [https://github.com/eelxpeng/UnsupervisedDeepLearning-Pytorch](https://github.com/eelxpeng/UnsupervisedDeepLearning-Pytorch), which is a PyTorch implementation of the original model, for which the code was published at [https://github.com/slim1017/VaDE](https://github.com/slim1017/VaDE).
 
