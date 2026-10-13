@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" width="1200" height="620" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+    <linearGradient id="bands" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6a3d9a"/>
+      <stop offset="0.25" stop-color="#1f78b4"/>
+      <stop offset="0.5" stop-color="#33a02c"/>
+      <stop offset="0.75" stop-color="#ffcc33"/>
+      <stop offset="1" stop-color="#e31a1c"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="620" fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="40" y="42" font-size="22" font-weight="bold" fill="#222">Spatially informed VaDE for hyperspectral image segmentation</text>
+
+  <!-- Legend -->
+  <rect x="900" y="66" width="18" height="14" rx="3" fill="#EAF1FB" stroke="#4C78A8" stroke-width="1.5"/>
+  <text x="926" y="78" font-size="13" fill="#333">original VaDE</text>
+  <rect x="900" y="90" width="18" height="14" rx="3" fill="#FFF1E0" stroke="#E8833A" stroke-width="1.5"/>
+  <text x="926" y="102" font-size="13" fill="#333">proposed extensions (1–5)</text>
+
+  <!-- Hyperspectral cube -->
+  <polygon points="50,215 80,185 210,185 180,215" fill="#C9D7EA" stroke="#4C78A8" stroke-width="1.5"/>
+  <polygon points="180,215 210,185 210,315 180,345" fill="url(#bands)" stroke="#4C78A8" stroke-width="1.5" opacity="0.85"/>
+  <rect x="50" y="215" width="130" height="130" fill="#DCE6F2" stroke="#4C78A8" stroke-width="1.5"/>
+  <g stroke="#9DB3D1" stroke-width="0.8">
+    <line x1="63" y1="215" x2="63" y2="345"/><line x1="76" y1="215" x2="76" y2="345"/>
+    <line x1="89" y1="215" x2="89" y2="345"/><line x1="102" y1="215" x2="102" y2="345"/>
+    <line x1="115" y1="215" x2="115" y2="345"/><line x1="128" y1="215" x2="128" y2="345"/>
+    <line x1="141" y1="215" x2="141" y2="345"/><line x1="154" y1="215" x2="154" y2="345"/>
+    <line x1="167" y1="215" x2="167" y2="345"/>
+    <line x1="50" y1="228" x2="180" y2="228"/><line x1="50" y1="241" x2="180" y2="241"/>
+    <line x1="50" y1="254" x2="180" y2="254"/><line x1="50" y1="267" x2="180" y2="267"/>
+    <line x1="50" y1="280" x2="180" y2="280"/><line x1="50" y1="293" x2="180" y2="293"/>
+    <line x1="50" y1="306" x2="180" y2="306"/><line x1="50" y1="319" x2="180" y2="319"/>
+    <line x1="50" y1="332" x2="180" y2="332"/>
+  </g>
+  <rect x="102" y="254" width="39" height="39" fill="none" stroke="#E8833A" stroke-width="2.5" stroke-dasharray="5,3"/>
+  <rect x="115" y="267" width="13" height="13" fill="#C0392B"/>
+  <text x="115" y="372" font-size="14" font-weight="bold" fill="#222" text-anchor="middle">Hyperspectral image</text>
+  <text x="115" y="390" font-size="12" fill="#555" text-anchor="middle">H × W pixels, B bands</text>
+
+  <!-- Arrows cube -> inputs -->
+  <g stroke="#555" stroke-width="1.6" fill="none" marker-end="url(#arr)">
+    <line x1="214" y1="262" x2="247" y2="186"/>
+    <line x1="214" y1="266" x2="247" y2="254"/>
+    <line x1="214" y1="270" x2="247" y2="322"/>
+    <line x1="214" y1="274" x2="247" y2="390"/>
+  </g>
+
+  <!-- Input boxes -->
+  <rect x="250" y="160" width="220" height="52" rx="8" fill="#EAF1FB" stroke="#4C78A8" stroke-width="1.8"/>
+  <text x="264" y="184" font-size="14" fill="#222">Pixel spectrum</text>
+  <text x="264" y="202" font-size="12" fill="#555">B spectral bands</text>
+  <polyline points="380,200 392,190 402,195 414,176 426,184 438,172 450,188 460,182" fill="none" stroke="#4C78A8" stroke-width="1.8"/>
+
+  <rect x="250" y="228" width="220" height="52" rx="8" fill="#FFF1E0" stroke="#E8833A" stroke-width="1.8"/>
+  <text x="264" y="251" font-size="14" fill="#222">Spatial patch p × p × B</text>
+  <text x="264" y="269" font-size="12" fill="#555">pixel + its surroundings</text>
+
+  <rect x="250" y="296" width="220" height="52" rx="8" fill="#FFF1E0" stroke="#E8833A" stroke-width="1.8"/>
+  <text x="264" y="319" font-size="14" fill="#222">Pixel indices (i, j)</text>
+  <text x="264" y="337" font-size="12" fill="#555">second input layer</text>
+
+  <rect x="250" y="364" width="220" height="52" rx="8" fill="#FFF1E0" stroke="#E8833A" stroke-width="1.8"/>
+  <text x="264" y="387" font-size="14" fill="#222">Pretrained latent embeddings</text>
+  <text x="264" y="405" font-size="12" fill="#555">from autoencoder pretraining</text>
+
+  <!-- Badges on inputs -->
+  <g font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">
+    <circle cx="470" cy="228" r="11" fill="#E8833A"/><text x="470" y="232">5</text>
+    <circle cx="470" cy="296" r="11" fill="#E8833A"/><text x="470" y="300">3</text>
+    <circle cx="470" cy="364" r="11" fill="#E8833A"/><text x="470" y="368">2</text>
+    <circle cx="102" cy="254" r="10" fill="#E8833A"/><text x="102" y="258.5">5</text>
+  </g>
+
+  <!-- Arrows inputs -> encoder -->
+  <g stroke="#555" stroke-width="1.6" fill="none" marker-end="url(#arr)">
+    <line x1="472" y1="186" x2="518" y2="186"/>
+    <line x1="484" y1="254" x2="518" y2="254"/>
+    <line x1="484" y1="322" x2="518" y2="322"/>
+    <line x1="484" y1="390" x2="518" y2="390"/>
+  </g>
+
+  <!-- Encoder -->
+  <polygon points="520,160 640,215 640,355 520,416" fill="#EAF1FB" stroke="#4C78A8" stroke-width="1.8"/>
+  <text x="580" y="270" font-size="15" font-weight="bold" fill="#222" text-anchor="middle">Encoder</text>
+  <text x="580" y="290" font-size="13" fill="#333" text-anchor="middle">q(z | x)</text>
+  <text x="580" y="328" font-size="10.5" fill="#B35F1E" text-anchor="middle">(3) learns spectral vs.</text>
+  <text x="580" y="342" font-size="10.5" fill="#B35F1E" text-anchor="middle">spatial weighting</text>
+
+  <!-- GMM prior -->
+  <rect x="630" y="66" width="150" height="82" rx="8" fill="#EAF1FB" stroke="#4C78A8" stroke-width="1.8"/>
+  <text x="705" y="88" font-size="14" font-weight="bold" fill="#222" text-anchor="middle">GMM prior</text>
+  <text x="705" y="106" font-size="12" fill="#333" text-anchor="middle">p(c) · p(z | c)</text>
+  <ellipse cx="672" cy="130" rx="16" ry="8" fill="#4C78A8" opacity="0.7"/>
+  <ellipse cx="705" cy="128" rx="13" ry="9" fill="#54A24B" opacity="0.7"/>
+  <ellipse cx="738" cy="131" rx="17" ry="7" fill="#B279A2" opacity="0.7"/>
+
+  <!-- Latent samples -->
+  <line x1="640" y1="290" x2="676" y2="290" stroke="#555" stroke-width="1.6" marker-end="url(#arr)"/>
+  <line x1="705" y1="150" x2="705" y2="224" stroke="#555" stroke-width="1.6" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+  <g fill="#FFF1E0" stroke="#E8833A" stroke-width="1.8">
+    <circle cx="705" cy="245" r="17"/>
+    <circle cx="705" cy="290" r="17"/>
+    <circle cx="705" cy="350" r="17"/>
+  </g>
+  <g font-size="12" fill="#222" text-anchor="middle">
+    <text x="701" y="249">z<tspan dx="1" dy="-5" font-size="9">(1)</tspan></text>
+    <text x="701" y="294">z<tspan dx="1" dy="-5" font-size="9">(2)</tspan></text>
+    <text x="701" y="354">z<tspan dx="1" dy="-5" font-size="9">(L)</tspan></text>
+  </g>
+  <g fill="#777"><circle cx="705" cy="312" r="1.8"/><circle cx="705" cy="320" r="1.8"/><circle cx="705" cy="328" r="1.8"/></g>
+  <circle cx="660" cy="392" r="11" fill="#E8833A"/>
+  <text x="660" y="396" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">4</text>
+  <text x="676" y="389" font-size="11.5" fill="#B35F1E">SGVB with L &gt; 1</text>
+  <text x="676" y="404" font-size="11.5" fill="#B35F1E">Monte Carlo samples</text>
+
+  <!-- Decoder -->
+  <line x1="723" y1="290" x2="768" y2="290" stroke="#555" stroke-width="1.6" marker-end="url(#arr)"/>
+  <polygon points="770,215 880,160 880,416 770,355" fill="#EAF1FB" stroke="#4C78A8" stroke-width="1.8"/>
+  <text x="828" y="282" font-size="15" font-weight="bold" fill="#222" text-anchor="middle">Decoder</text>
+  <text x="828" y="302" font-size="13" fill="#333" text-anchor="middle">p(x | z)</text>
+
+  <!-- Reconstruction -->
+  <line x1="880" y1="290" x2="908" y2="290" stroke="#555" stroke-width="1.6" marker-end="url(#arr)"/>
+  <rect x="910" y="258" width="170" height="64" rx="8" fill="#EAF1FB" stroke="#4C78A8" stroke-width="1.8"/>
+  <text x="995" y="282" font-size="14" fill="#222" text-anchor="middle">Reconstruction</text>
+  <polyline points="945,310 960,300 972,305 986,288 1000,296 1014,284 1030,300 1045,294" fill="none" stroke="#4C78A8" stroke-width="1.8"/>
+
+  <!-- Cluster assignment -->
+  <line x1="705" y1="412" x2="705" y2="452" stroke="#555" stroke-width="1.6" marker-end="url(#arr)"/>
+  <rect x="615" y="455" width="180" height="52" rx="8" fill="#EAF1FB" stroke="#4C78A8" stroke-width="1.8"/>
+  <text x="705" y="477" font-size="14" fill="#222" text-anchor="middle">Cluster assignment</text>
+  <text x="705" y="496" font-size="12" fill="#333" text-anchor="middle">q(c | x)</text>
+  <line x1="795" y1="481" x2="906" y2="496" stroke="#555" stroke-width="1.6" marker-end="url(#arr)"/>
+
+  <!-- Segmentation map -->
+  <circle cx="908" cy="414" r="11" fill="#E8833A"/>
+  <text x="908" y="418" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">1</text>
+  <text x="925" y="418" font-size="12" fill="#B35F1E">TV: neighbouring pixels share a class</text>
+  <g stroke="#fff" stroke-width="1">
+    <!-- rows 0-2 -->
+    <rect x="910" y="432" width="21" height="21" fill="#4C78A8"/><rect x="931" y="432" width="21" height="21" fill="#4C78A8"/><rect x="952" y="432" width="21" height="21" fill="#4C78A8"/><rect x="973" y="432" width="21" height="21" fill="#54A24B"/><rect x="994" y="432" width="21" height="21" fill="#54A24B"/><rect x="1015" y="432" width="21" height="21" fill="#54A24B"/><rect x="1036" y="432" width="21" height="21" fill="#54A24B"/><rect x="1057" y="432" width="21" height="21" fill="#54A24B"/>
+    <rect x="910" y="453" width="21" height="21" fill="#4C78A8"/><rect x="931" y="453" width="21" height="21" fill="#4C78A8"/><rect x="952" y="453" width="21" height="21" fill="#4C78A8"/><rect x="973" y="453" width="21" height="21" fill="#4C78A8"/><rect x="994" y="453" width="21" height="21" fill="#54A24B"/><rect x="1015" y="453" width="21" height="21" fill="#54A24B"/><rect x="1036" y="453" width="21" height="21" fill="#54A24B"/><rect x="1057" y="453" width="21" height="21" fill="#54A24B"/>
+    <rect x="910" y="474" width="21" height="21" fill="#4C78A8"/><rect x="931" y="474" width="21" height="21" fill="#4C78A8"/><rect x="952" y="474" width="21" height="21" fill="#4C78A8"/><rect x="973" y="474" width="21" height="21" fill="#4C78A8"/><rect x="994" y="474" width="21" height="21" fill="#54A24B"/><rect x="1015" y="474" width="21" height="21" fill="#54A24B"/><rect x="1036" y="474" width="21" height="21" fill="#54A24B"/><rect x="1057" y="474" width="21" height="21" fill="#B279A2"/>
+    <!-- rows 3-5 -->
+    <rect x="910" y="495" width="21" height="21" fill="#4C78A8"/><rect x="931" y="495" width="21" height="21" fill="#4C78A8"/><rect x="952" y="495" width="21" height="21" fill="#4C78A8"/><rect x="973" y="495" width="21" height="21" fill="#B279A2"/><rect x="994" y="495" width="21" height="21" fill="#B279A2"/><rect x="1015" y="495" width="21" height="21" fill="#B279A2"/><rect x="1036" y="495" width="21" height="21" fill="#B279A2"/><rect x="1057" y="495" width="21" height="21" fill="#B279A2"/>
+    <rect x="910" y="516" width="21" height="21" fill="#4C78A8"/><rect x="931" y="516" width="21" height="21" fill="#4C78A8"/><rect x="952" y="516" width="21" height="21" fill="#B279A2"/><rect x="973" y="516" width="21" height="21" fill="#B279A2"/><rect x="994" y="516" width="21" height="21" fill="#B279A2"/><rect x="1015" y="516" width="21" height="21" fill="#B279A2"/><rect x="1036" y="516" width="21" height="21" fill="#B279A2"/><rect x="1057" y="516" width="21" height="21" fill="#B279A2"/>
+    <rect x="910" y="537" width="21" height="21" fill="#4C78A8"/><rect x="931" y="537" width="21" height="21" fill="#B279A2"/><rect x="952" y="537" width="21" height="21" fill="#B279A2"/><rect x="973" y="537" width="21" height="21" fill="#B279A2"/><rect x="994" y="537" width="21" height="21" fill="#B279A2"/><rect x="1015" y="537" width="21" height="21" fill="#B279A2"/><rect x="1036" y="537" width="21" height="21" fill="#B279A2"/><rect x="1057" y="537" width="21" height="21" fill="#B279A2"/>
+  </g>
+  <rect x="910" y="432" width="168" height="126" fill="none" stroke="#333" stroke-width="1.5"/>
+  <text x="994" y="580" font-size="14" font-weight="bold" fill="#222" text-anchor="middle">Segmentation map</text>
+
+  <!-- Objective -->
+  <rect x="40" y="530" width="545" height="60" rx="8" fill="#F5F5F5" stroke="#888" stroke-width="1.5"/>
+  <text x="56" y="566" font-size="15" fill="#222"><tspan font-weight="bold">Objective:</tspan>  − ELBO (averaged over L samples)  +  λ · TV( q(c | x) )</text>
+  <g font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">
+    <circle cx="236" cy="530" r="11" fill="#E8833A"/><text x="236" y="534">4</text>
+    <circle cx="480" cy="530" r="11" fill="#E8833A"/><text x="480" y="534">1</text>
+  </g>
+</svg>
